@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>NS Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #0f766e; --t1: #b91c1c; --t1bg: #fdecec; --t2: #c2410c; --t3: #a16207; --t4: #1d4ed8; --t5: #4b5563; --t6: #9ca3af;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #181b21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f38;
+      --accent: #2dd4bf; --t1: #f87171; --t1bg: #3a1d1d; --t2: #fb923c; --t3: #facc15; --t4: #60a5fa; --t5: #9ca3af; --t6: #6b7280; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 960px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 12px; align-items: center; }
+  .bar h1 { font-size: 17px; margin: 0; flex: 1; }
+  nav { max-width: 960px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
+  nav button { border: 0; background: none; color: var(--muted); padding: 10px 12px; font: inherit; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  nav button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); font-weight: 600; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .stat.hot b { color: var(--t1); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  select, input, button.btn { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  button.btn { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .item { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--tc); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .item.t1 { background: var(--t1bg); }
+  .row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .title { font-weight: 600; flex: 1 1 260px; }
+  .amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 2px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill { font-size: 12px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--tc); color: var(--tc); white-space: nowrap; }
+  .due.over { color: var(--t1); font-weight: 600; }
+  .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .actions button { font-size: 13px; padding: 4px 9px; }
+  details { margin-top: 6px; color: var(--muted); font-size: 13px; }
+  details p { white-space: pre-wrap; margin: 4px 0 0; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  #login { max-width: 340px; margin: 12vh auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 10px; }
+  #login h1 { margin: 0 0 4px; font-size: 18px; }
+  .err { color: var(--t1); font-size: 13px; min-height: 1em; }
+  [hidden] { display: none !important; }
+  .t1 { --tc: var(--t1); } .t2 { --tc: var(--t2); } .t3 { --tc: var(--t3); } .t4 { --tc: var(--t4); } .t5 { --tc: var(--t5); } .t6 { --tc: var(--t6); }
+</style>
+</head>
+<body>
+
+<form id="login" hidden>
+  <h1>NS Dashboard</h1>
+  <input id="email" type="email" placeholder="Email" autocomplete="username" required>
+  <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+  <button class="btn primary" type="submit">Sign in</button>
+  <div class="err" id="loginErr" role="alert"></div>
+</form>
+
+<div id="app" hidden>
+  <header>
+    <div class="bar"><h1>NS Dashboard</h1><button class="btn" id="refresh" title="Reload">↻</button><button class="btn" id="logout">Sign out</button></div>
+    <nav role="tablist">
+      <button role="tab" data-tab="today" aria-selected="true">Today</button>
+      <button role="tab" data-tab="payables">Payables</button>
+      <button role="tab" data-tab="receivables">Receivables</button>
+      <button role="tab" data-tab="tasks">Tasks</button>
+      <button role="tab" data-tab="review">Review <span id="reviewCount"></span></button>
+      <button role="tab" data-tab="done">Done</button>
+    </nav>
+  </header>
+  <main>
+    <section class="stats" id="stats"></section>
+    <div class="filters">
+      <select id="entity" aria-label="Entity"><option value="">All entities</option></select>
+      <select id="tier" aria-label="Priority"><option value="">All priorities</option></select>
+      <input id="q" type="search" placeholder="Search…" aria-label="Search">
+    </div>
+    <section id="list" aria-live="polite"></section>
+  </main>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+// Public, browser-safe values. Data is protected by login + row-level security, not by hiding these.
+const sb = createClient('https://lmrgmokjncuoaszpilxd.supabase.co', 'sb_publishable_yjpFzwKlWXwl_W5e2a2A6g_8d3asqHH');
+
+const TIERS = { 1: 'Urgent', 2: 'Payment groups', 3: 'Family', 4: 'Staff docs', 5: 'Other', 6: 'Low' };
+const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+const today = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).setHours(0, 0, 0, 0);
+const daysTo = d => d ? Math.round((Date.parse(d + 'T00:00:00') - today()) / 86400000) : null;
+const lakh = n => n >= 1e7 ? (n / 1e7).toFixed(2) + ' Cr' : n >= 1e5 ? (n / 1e5).toFixed(2) + ' L' : inr(n);
+
+let items = [], tab = 'today', user = null;
+
+// ---------- data ----------
+async function load() {
+  const { data, error } = await sb.from('items').select('*').order('tier').order('due_date', { nullsFirst: false }).limit(2000);
+  if (error) return showError(error.message);
+  items = data; render();
+}
+
+async function act(it, patch, type, note) {
+  const before = Object.fromEntries(Object.keys(patch).map(k => [k, it[k]]));
+  const upd = { ...patch, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('items').update(upd).eq('id', it.id);
+  if (error) return alert('Could not save: ' + error.message);
+  await Promise.all([
+    sb.from('item_events').insert({ item_id: it.id, type, note, by_user: user?.email }),
+    sb.from('feedback').insert({ item_id: it.id, action: type, before, after: patch }),
+  ]);
+  Object.assign(it, upd); render();
+}
+
+const ACTIONS = {
+  accept: it => act(it, { status: 'open' }, 'accepted'),
+  reject: it => act(it, { status: 'cancelled', closed_at: new Date().toISOString(), closed_by: user?.email }, 'dismiss', 'Not a payment / not needed'),
+  done: it => {
+    const proof = prompt('Mark done. Optional proof (UTR / note):', '') ;
+    if (proof === null) return;
+    act(it, { status: 'done', closed_at: new Date().toISOString(), closed_by: user?.email, proof: proof || null }, 'done', proof);
+  },
+  part: it => {
+    const v = prompt(`Amount paid now (₹)${it.amount ? ` - balance ${inr(it.amount - (it.amount_paid || 0))}` : ''}:`);
+    const n = Number(String(v || '').replace(/[,₹\s]/g, ''));
+    if (!n) return;
+    const paid = Number(it.amount_paid || 0) + n;
+    act(it, { amount_paid: paid, status: it.amount && paid >= it.amount ? 'done' : 'part_paid' }, 'part_paid', inr(n));
+  },
+  up: it => it.tier > 1 && act(it, { tier: it.tier - 1 }, 'rerank', 'priority up'),
+  down: it => it.tier < 6 && act(it, { tier: it.tier + 1 }, 'rerank', 'priority down'),
+  wait: it => act(it, { status: 'waiting' }, 'waiting'),
+  edit: it => {
+    const amt = prompt('Amount (₹, blank = none):', it.amount ?? '');
+    if (amt === null) return;
+    const due = prompt('Due date (YYYY-MM-DD, blank = none):', it.due_date ?? '');
+    if (due === null) return;
+    if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) return alert('Use YYYY-MM-DD');
+    act(it, { amount: amt === '' ? null : Number(String(amt).replace(/[,₹\s]/g, '')), due_date: due || null }, 'edit');
+  },
+  reopen: it => act(it, { status: 'open', closed_at: null }, 'reopened'),
+};
+
+// ---------- view ----------
+function filtered() {
+  const ent = $('#entity').value, tr = $('#tier').value, q = $('#q').value.toLowerCase();
+  const byTab = {
+    today: i => OPEN.includes(i.status) && (i.tier === 1 || (daysTo(i.due_date) ?? 99) <= 2),
+    payables: i => OPEN.includes(i.status) && i.kind === 'payment_out',
+    receivables: i => OPEN.includes(i.status) && (i.kind === 'payment_in' || i.kind === 'invoice'),
+    tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
+    review: i => i.status === 'needs_review',
+    done: i => i.status === 'done' || i.status === 'cancelled',
+  }[tab];
+  return items.filter(i => byTab(i) && (!ent || i.entity === ent) && (!tr || i.tier == tr) &&
+    (!q || [i.title, i.party, i.requested_by, i.details].join(' ').toLowerCase().includes(q)));
+}
+
+function sortForTab(list) {
+  if (tab === 'done') return list.sort((a, b) => (b.closed_at || '').localeCompare(a.closed_at || ''));
+  return list.sort((a, b) => a.tier - b.tier || (daysTo(a.due_date) ?? 999) - (daysTo(b.due_date) ?? 999) || (b.amount || 0) - (a.amount || 0));
+}
+
+function card(i) {
+  const d = daysTo(i.due_date);
+  const due = d == null ? '' : d < 0 ? `<span class="due over">${-d}d overdue</span>` : d === 0 ? '<span class="due over">due today</span>' : `<span class="due">due in ${d}d (${i.due_date})</span>`;
+  const bal = i.amount_paid > 0 ? ` <span class="meta">paid ${inr(i.amount_paid)}</span>` : '';
+  const age = Math.floor((Date.now() - Date.parse(i.created_at)) / 86400000);
+  const btns = i.status === 'needs_review' ? ['accept:✓ Accept', 'reject:✕ Not needed', 'edit:Edit', 'up:▲', 'down:▼']
+    : ['done', 'cancelled'].includes(i.status) ? ['reopen:Reopen']
+    : ['done:✓ Done', ...(i.amount ? ['part:Part paid'] : []), 'wait:Waiting', 'edit:Edit', 'up:▲', 'down:▼'];
+  return `<article class="item t${i.tier} ${i.tier === 1 ? 't1' : ''}" data-id="${i.id}">
+    <div class="row"><span class="pill">${TIERS[i.tier]}</span><span class="title">${esc(i.title)}</span><span class="amt">${inr(i.amount)}${bal}</span></div>
+    <div class="meta">${due}${i.entity ? `<span>${esc(i.entity)}</span>` : ''}${i.party ? `<span>${esc(i.party)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}${i.times_asked > 1 ? `<span>asked ${i.times_asked}×</span>` : ''}<span>open ${age}d</span>${i.status !== 'open' ? `<span>${i.status.replace('_', ' ')}</span>` : ''}</div>
+    ${i.details || i.source_ref ? `<details><summary>Source</summary><p>${esc(i.details || '')}\n${esc(i.source || '')} ${esc(i.source_ref || '')}${i.proof ? '\nProof: ' + esc(i.proof) : ''}</p></details>` : ''}
+    <div class="actions">${btns.map(b => { const [a, l] = b.split(':'); return `<button class="btn" data-act="${a}">${l}</button>`; }).join('')}</div>
+  </article>`;
+}
+
+function render() {
+  const open = items.filter(i => OPEN.includes(i.status));
+  const outs = open.filter(i => i.kind === 'payment_out');
+  const sum = l => l.reduce((s, i) => s + Math.max(0, (i.amount || 0) - (i.amount_paid || 0)), 0);
+  const due2 = outs.filter(i => { const d = daysTo(i.due_date); return d != null && d <= 2; });
+  const overdue = open.filter(i => (daysTo(i.due_date) ?? 1) < 0).length;
+  const review = items.filter(i => i.status === 'needs_review').length;
+  $('#stats').innerHTML = [
+    ['hot', open.filter(i => i.tier === 1).length, 'urgent open'],
+    ['hot', lakh(sum(due2)), 'to pay in 48 hrs'],
+    [overdue ? 'hot' : '', overdue, 'overdue'],
+    ['', lakh(sum(outs.filter(i => (daysTo(i.due_date) ?? 99) <= 30))), 'to pay in 30 days'],
+    ['', review, 'need review'],
+  ].map(([c, v, l]) => `<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join('');
+  $('#reviewCount').textContent = review ? `(${review})` : '';
+  const list = sortForTab(filtered());
+  $('#list').innerHTML = list.length ? list.slice(0, 300).map(card).join('') + (list.length > 300 ? `<p class="empty">Showing 300 of ${list.length} - use filters</p>` : '')
+    : '<p class="empty">Nothing here 🎉</p>';
+}
+
+function showError(m) { $('#list').innerHTML = `<p class="empty">Error: ${esc(m)}</p>`; }
+
+// ---------- wiring ----------
+$('#list').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const it = items.find(i => i.id == b.closest('.item').dataset.id);
+  ACTIONS[b.dataset.act](it);
+});
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x === b));
+  tab = b.dataset.tab; render();
+}));
+['#entity', '#tier', '#q'].forEach(s => $(s).addEventListener('input', render));
+Object.entries(TIERS).forEach(([k, v]) => $('#tier').insertAdjacentHTML('beforeend', `<option value="${k}">${v}</option>`));
+['NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'].forEach(e => $('#entity').insertAdjacentHTML('beforeend', `<option>${e}</option>`));
+$('#refresh').onclick = load;
+$('#logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#login').addEventListener('submit', async e => {
+  e.preventDefault();
+  const { error } = await sb.auth.signInWithPassword({ email: $('#email').value, password: $('#password').value });
+  $('#loginErr').textContent = error ? error.message : '';
+});
+
+sb.auth.onAuthStateChange((_ev, session) => {
+  user = session?.user || null;
+  $('#login').hidden = !!user; $('#app').hidden = !user;
+  if (user) load();
+});
+setInterval(() => user && !document.hidden && load(), 120000);
+
+window.__ns = { setItems: d => { items = d; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); } }; // local preview hook, no data access
+</script>
+</body>
+</html>
