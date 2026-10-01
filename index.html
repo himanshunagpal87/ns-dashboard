@@ -42,6 +42,7 @@
   .src b { color: var(--ink); font-weight: 600; }
   .pill { font-size: 12px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--tc); color: var(--tc); white-space: nowrap; }
   .kind { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--line); white-space: nowrap; }
+  .auto { font-size: 11px; border: 1px dashed var(--muted); color: var(--muted); background: none; border-radius: 99px; padding: 0 7px; cursor: pointer; }
   .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
   .health { background: var(--t1); color: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
@@ -238,6 +239,7 @@ async function openEdit(it) {
   form.elements.comment.value = '';
   $('#editHist').textContent = 'Loading history…';
   $('#edit').showModal();
+  if (it.auto_accepted) form.elements.comment.placeholder = 'Accepted automatically - what was wrong or missing? (the AI learns from this)';
   const { data } = await sb.from('item_events').select('at,type,note,by_user').eq('item_id', it.id).order('at', { ascending: false }).limit(30);
   $('#editHist').innerHTML = (data || []).map(e => `${when(e.at)} · ${esc(e.type)}${e.note ? ': ' + esc(e.note) : ''}${e.by_user ? ' · ' + esc(e.by_user) : ''}`).join('<br>') || 'No history yet';
   if (!it.seen_at) ACTIONS.seen(it).then(render);
@@ -288,7 +290,7 @@ function card(i) {
   return `<article class="item t${i.tier} ${i.tier === 1 ? 't1' : ''} ${sel.has(i.id) ? 'selected' : ''}" data-id="${i.id}">
     <input type="checkbox" data-sel ${sel.has(i.id) ? 'checked' : ''} aria-label="Select #${i.id}">
     <div>
-      <div class="row">${isNew(i) ? '<span class="newb">NEW</span>' : ''}<span class="pill">${TIERS[i.tier]}</span><span class="kind">${KINDS[i.kind] || esc(i.kind)}</span>
+      <div class="row">${isNew(i) ? '<span class="newb">NEW</span>' : ''}<span class="pill">${TIERS[i.tier]}</span><span class="kind">${KINDS[i.kind] || esc(i.kind)}</span>${i.auto_accepted ? '<button class="auto" data-act="edit" title="Accepted automatically (high confidence). Click to correct it or leave a comment for the AI.">🤖 auto</button>' : ''}
         <span class="title">${esc(i.title)}</span><span class="amt">${inr(i.amount)}${i.amount_paid > 0 ? ` <small>(paid ${inr(i.amount_paid)})</small>` : ''}</span></div>
       <div class="src"><b>${CH[i.channel] || esc(i.channel || '?')}</b>${i.chat_name ? `<span>${esc(i.chat_name)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}<span>🕒 ${when(i.received_at || i.created_at)}</span></div>
       <div class="meta">${due}${i.entity ? `<span>${esc(i.entity)}</span>` : ''}${i.party ? `<span>${esc(i.party)}</span>` : ''}${i.times_asked > 1 ? `<span>asked ${i.times_asked}×</span>` : ''}<span>#${i.id}</span>${i.status !== 'open' ? `<span>${esc(i.status.replace('_', ' '))}</span>` : ''}</div>
