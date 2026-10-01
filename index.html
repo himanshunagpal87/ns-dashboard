@@ -7,49 +7,62 @@
 <title>NS Dashboard</title>
 <style>
   :root {
-    --bg: #f6f7f9; --card: #fff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb;
-    --accent: #0f766e; --t1: #b91c1c; --t1bg: #fdecec; --t2: #c2410c; --t3: #a16207; --t4: #1d4ed8; --t5: #4b5563; --t6: #9ca3af;
+    --bg: #f6f7f9; --card: #fff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --sel: #e0f2fe;
+    --accent: #0f766e; --t1: #b91c1c; --t1bg: #fdecec; --t2: #c2410c; --t3: #a16207; --t4: #1d4ed8; --t5: #4b5563; --t6: #9ca3af; --new: #7c3aed;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1115; --card: #181b21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f38;
-      --accent: #2dd4bf; --t1: #f87171; --t1bg: #3a1d1d; --t2: #fb923c; --t3: #facc15; --t4: #60a5fa; --t5: #9ca3af; --t6: #6b7280; }
+    :root { --bg: #0f1115; --card: #181b21; --ink: #e5e7eb; --muted: #9ca3af; --line: #2a2f38; --sel: #0c2a3a;
+      --accent: #2dd4bf; --t1: #f87171; --t1bg: #3a1d1d; --t2: #fb923c; --t3: #facc15; --t4: #60a5fa; --t5: #9ca3af; --t6: #6b7280; --new: #a78bfa; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
   header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); }
-  .bar { max-width: 960px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 12px; align-items: center; }
+  .bar { max-width: 980px; margin: 0 auto; padding: 8px 16px; display: flex; gap: 8px; align-items: center; }
   .bar h1 { font-size: 17px; margin: 0; flex: 1; }
-  nav { max-width: 960px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
-  nav button { border: 0; background: none; color: var(--muted); padding: 10px 12px; font: inherit; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+  .live { font-size: 12px; color: var(--muted); } .live b { color: var(--accent); }
+  nav { max-width: 980px; margin: 0 auto; padding: 0 16px; display: flex; gap: 2px; overflow-x: auto; }
+  nav button { border: 0; background: none; color: var(--muted); padding: 10px 11px; font: inherit; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
   nav button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); font-weight: 600; }
-  main { max-width: 960px; margin: 0 auto; padding: 16px; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-  .stat b { display: block; font-size: 20px; }
-  .stat span { color: var(--muted); font-size: 13px; }
-  .stat.hot b { color: var(--t1); }
-  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  select, input, button.btn { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
-  button.btn { cursor: pointer; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .item { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--tc); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-  .item.t1 { background: var(--t1bg); }
-  .row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .cnt { font-size: 12px; background: var(--line); border-radius: 99px; padding: 0 6px; margin-left: 3px; }
+  .cnt.hot { background: var(--t1); color: #fff; } .cnt.new { background: var(--new); color: #fff; }
+  main { max-width: 980px; margin: 0 auto; padding: 14px 16px 90px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .stat b { display: block; font-size: 19px; } .stat span { color: var(--muted); font-size: 13px; } .stat.hot b { color: var(--t1); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  select, input, textarea, button.btn { font: inherit; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  button.btn { cursor: pointer; } button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .item { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--tc); border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; display: grid; grid-template-columns: 22px 1fr; gap: 0 8px; }
+  .item.t1 { background: var(--t1bg); } .item.selected { outline: 2px solid var(--t4); background: var(--sel); }
+  .item input[type=checkbox] { margin-top: 4px; width: 17px; height: 17px; }
+  .row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .title { font-weight: 600; flex: 1 1 260px; }
   .amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-  .meta { color: var(--muted); font-size: 13px; margin-top: 2px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .src, .meta { color: var(--muted); font-size: 13px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .src b { color: var(--ink); font-weight: 600; }
   .pill { font-size: 12px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--tc); color: var(--tc); white-space: nowrap; }
+  .kind { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--line); white-space: nowrap; }
+  .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
-  .actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .actions button { font-size: 13px; padding: 4px 9px; }
-  details { margin-top: 6px; color: var(--muted); font-size: 13px; }
-  details p { white-space: pre-wrap; margin: 4px 0 0; }
+  .actions { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .actions button { font-size: 13px; padding: 3px 9px; }
+  details { margin-top: 5px; color: var(--muted); font-size: 13px; } details p { white-space: pre-wrap; margin: 4px 0 0; }
   .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  #bulk { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px #0002; z-index: 6; }
+  #bulk .in { max-width: 980px; margin: 0 auto; padding: 9px 16px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  #bulk .in b { margin-right: 6px; }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); width: min(560px, 94vw); padding: 16px; }
+  dialog::backdrop { background: #0006; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; } .grid label { display: grid; gap: 3px; font-size: 13px; color: var(--muted); }
+  .grid .full { grid-column: 1 / -1; } .grid input, .grid select, .grid textarea { width: 100%; }
+  .hist { font-size: 12px; color: var(--muted); max-height: 120px; overflow: auto; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; }
   #login { max-width: 340px; margin: 12vh auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 10px; }
   #login h1 { margin: 0 0 4px; font-size: 18px; }
   .err { color: var(--t1); font-size: 13px; min-height: 1em; }
+  #toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: var(--t1); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 9; box-shadow: 0 6px 24px #0004; cursor: pointer; max-width: 92vw; }
   [hidden] { display: none !important; }
   .t1 { --tc: var(--t1); } .t2 { --tc: var(--t2); } .t3 { --tc: var(--t3); } .t4 { --tc: var(--t4); } .t5 { --tc: var(--t5); } .t6 { --tc: var(--t6); }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -64,26 +77,67 @@
 
 <div id="app" hidden>
   <header>
-    <div class="bar"><h1>NS Dashboard</h1><button class="btn" id="refresh" title="Reload">↻</button><button class="btn" id="logout">Sign out</button></div>
-    <nav role="tablist">
-      <button role="tab" data-tab="today" aria-selected="true">Today</button>
-      <button role="tab" data-tab="payables">Payables</button>
-      <button role="tab" data-tab="receivables">Receivables</button>
-      <button role="tab" data-tab="tasks">Tasks</button>
-      <button role="tab" data-tab="review">Review <span id="reviewCount"></span></button>
-      <button role="tab" data-tab="done">Done</button>
-    </nav>
+    <div class="bar">
+      <h1>NS Dashboard</h1>
+      <span class="live" id="live" title="Live connection">○ connecting</span>
+      <button class="btn" id="notif" title="Sound + browser alert for new urgent items">🔔 Alerts</button>
+      <button class="btn" id="refresh" title="Reload">↻</button>
+      <button class="btn" id="logout">Sign out</button>
+    </div>
+    <nav role="tablist" id="tabs"></nav>
   </header>
   <main>
     <section class="stats" id="stats"></section>
     <div class="filters">
+      <input type="checkbox" id="selAll" title="Select all shown" aria-label="Select all shown">
       <select id="entity" aria-label="Entity"><option value="">All entities</option></select>
       <select id="tier" aria-label="Priority"><option value="">All priorities</option></select>
+      <select id="channel" aria-label="Source"><option value="">All sources</option></select>
       <input id="q" type="search" placeholder="Search…" aria-label="Search">
+      <button class="btn" id="markSeen" hidden>Mark all seen</button>
     </div>
     <section id="list" aria-live="polite"></section>
   </main>
 </div>
+
+<div id="bulk" hidden><div class="in">
+  <b id="bulkN"></b>
+  <button class="btn" data-bulk="accept">✓ Accept</button>
+  <button class="btn" data-bulk="done">✓ Done</button>
+  <button class="btn" data-bulk="reject">✕ Not needed</button>
+  <button class="btn" data-bulk="to_payment_out">→ Payable</button>
+  <button class="btn" data-bulk="to_payment_in">→ Receivable</button>
+  <button class="btn" data-bulk="to_task">→ Task</button>
+  <button class="btn" data-bulk="up">▲</button>
+  <button class="btn" data-bulk="down">▼</button>
+  <button class="btn" data-bulk="clear">Clear</button>
+</div></div>
+
+<dialog id="edit">
+  <form method="dialog" id="editForm">
+    <h3 style="margin:0 0 10px">Edit item <span id="editId"></span></h3>
+    <div class="grid">
+      <label class="full">Title <input name="title" required></label>
+      <label>Type <select name="kind"></select></label>
+      <label>Priority <select name="tier"></select></label>
+      <label>Amount (₹) <input name="amount" inputmode="decimal"></label>
+      <label>Due date <input name="due_date" type="date"></label>
+      <label>Party <input name="party"></label>
+      <label>Entity <select name="entity"></select></label>
+      <label>Status <select name="status"></select></label>
+      <label>Category <select name="category"></select></label>
+      <label class="full">Comment for the AI / for later (why this is wrong, how to treat similar requests)
+        <textarea name="comment" rows="3" placeholder="e.g. Sending UTR or payment details is a task, not a payment"></textarea></label>
+    </div>
+    <div class="hist" id="editHist"></div>
+    <div class="actions" style="justify-content:flex-end">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" hidden></div>
 
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -92,151 +146,258 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const sb = createClient('https://lmrgmokjncuoaszpilxd.supabase.co', 'sb_publishable_yjpFzwKlWXwl_W5e2a2A6g_8d3asqHH');
 
 const TIERS = { 1: 'Urgent', 2: 'Payment groups', 3: 'Family', 4: 'Staff docs', 5: 'Other', 6: 'Low' };
+const KINDS = { payment_out: 'Payable', payment_in: 'Receivable', task: 'Task', compliance: 'Compliance', lead: 'Lead', invoice: 'Invoice' };
+const STATUSES = ['needs_review', 'open', 'scheduled', 'part_paid', 'waiting', 'done', 'cancelled'];
+const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 'transfer', 'salary', 'tax', 'challan', 'other'];
+const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
+const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
+const TABS = [['recent', 'Recent'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
-const today = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).setHours(0, 0, 0, 0);
-const daysTo = d => d ? Math.round((Date.parse(d + 'T00:00:00') - today()) / 86400000) : null;
 const lakh = n => n >= 1e7 ? (n / 1e7).toFixed(2) + ' Cr' : n >= 1e5 ? (n / 1e5).toFixed(2) + ' L' : inr(n);
+const istDate = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });   // YYYY-MM-DD
+const when = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+const daysTo = d => d ? Math.round((Date.parse(d) - Date.parse(istDate(Date.now()))) / 86400000) : null;
+const isNew = i => !i.seen_at && i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3;
 
-let items = [], tab = 'today', user = null;
+let items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
+try { alertsOn = localStorage.getItem('ns.alerts') === '1'; } catch { }
 
 // ---------- data ----------
 async function load() {
-  const { data, error } = await sb.from('items').select('*').order('tier').order('due_date', { nullsFirst: false }).limit(2000);
+  const { data, error } = await sb.from('items').select('*').order('id', { ascending: false }).limit(3000);
   if (error) return showError(error.message);
   items = data; render();
 }
 
-async function act(it, patch, type, note) {
-  const before = Object.fromEntries(Object.keys(patch).map(k => [k, it[k]]));
-  const upd = { ...patch, updated_at: new Date().toISOString() };
-  const { error } = await sb.from('items').update(upd).eq('id', it.id);
-  if (error) return alert('Could not save: ' + error.message);
-  await Promise.all([
-    sb.from('item_events').insert({ item_id: it.id, type, note, by_user: user?.email }),
-    sb.from('feedback').insert({ item_id: it.id, action: type, before, after: patch }),
-  ]);
-  Object.assign(it, upd); render();
+async function patch(it, upd, type, note, extraFeedback) {
+  const before = Object.fromEntries(Object.keys(upd).map(k => [k, it[k]]));
+  const { error } = await sb.from('items').update({ ...upd, updated_at: new Date().toISOString() }).eq('id', it.id);
+  if (error) { alert('Could not save #' + it.id + ': ' + error.message); return false; }
+  const jobs = [sb.from('item_events').insert({ item_id: it.id, type, note, by_user: user?.email })];
+  if (type !== 'seen') jobs.push(sb.from('feedback').insert({ item_id: it.id, action: extraFeedback || type, before, after: upd }));
+  await Promise.all(jobs);
+  Object.assign(it, upd);
+  return true;
 }
+const now = () => new Date().toISOString();
+const closeUpd = st => ({ status: st, closed_at: now(), closed_by: user?.email });
 
 const ACTIONS = {
-  accept: it => act(it, { status: 'open' }, 'accepted'),
-  reject: it => act(it, { status: 'cancelled', closed_at: new Date().toISOString(), closed_by: user?.email }, 'dismiss', 'Not a payment / not needed'),
-  done: it => {
-    const proof = prompt('Mark done. Optional proof (UTR / note):', '') ;
-    if (proof === null) return;
-    act(it, { status: 'done', closed_at: new Date().toISOString(), closed_by: user?.email, proof: proof || null }, 'done', proof);
-  },
-  part: it => {
+  accept: it => patch(it, { status: 'open', seen_at: it.seen_at || now() }, 'accepted'),
+  reject: it => patch(it, { ...closeUpd('cancelled'), seen_at: it.seen_at || now() }, 'dismiss', 'Not needed'),
+  done: it => patch(it, { ...closeUpd('done'), seen_at: it.seen_at || now() }, 'done'),
+  up: it => it.tier > 1 && patch(it, { tier: it.tier - 1 }, 'rerank', 'priority up'),
+  down: it => it.tier < 6 && patch(it, { tier: it.tier + 1 }, 'rerank', 'priority down'),
+  wait: it => patch(it, { status: 'waiting' }, 'waiting'),
+  reopen: it => patch(it, { status: 'open', closed_at: null }, 'reopened'),
+  seen: it => !it.seen_at && patch(it, { seen_at: now() }, 'seen'),
+  to_payment_out: it => it.kind !== 'payment_out' && patch(it, { kind: 'payment_out' }, 'reclassify', 'moved to Payables'),
+  to_payment_in: it => it.kind !== 'payment_in' && patch(it, { kind: 'payment_in' }, 'reclassify', 'moved to Receivables'),
+  to_task: it => it.kind !== 'task' && patch(it, { kind: 'task' }, 'reclassify', 'moved to Tasks'),
+  part: async it => {
     const v = prompt(`Amount paid now (₹)${it.amount ? ` - balance ${inr(it.amount - (it.amount_paid || 0))}` : ''}:`);
-    const n = Number(String(v || '').replace(/[,₹\s]/g, ''));
-    if (!n) return;
+    const n = Number(String(v || '').replace(/[,₹\s]/g, '')); if (!n) return;
     const paid = Number(it.amount_paid || 0) + n;
-    act(it, { amount_paid: paid, status: it.amount && paid >= it.amount ? 'done' : 'part_paid' }, 'part_paid', inr(n));
+    await patch(it, { amount_paid: paid, status: it.amount && paid >= it.amount ? 'done' : 'part_paid' }, 'part_paid', inr(n));
   },
-  up: it => it.tier > 1 && act(it, { tier: it.tier - 1 }, 'rerank', 'priority up'),
-  down: it => it.tier < 6 && act(it, { tier: it.tier + 1 }, 'rerank', 'priority down'),
-  wait: it => act(it, { status: 'waiting' }, 'waiting'),
-  edit: it => {
-    const amt = prompt('Amount (₹, blank = none):', it.amount ?? '');
-    if (amt === null) return;
-    const due = prompt('Due date (YYYY-MM-DD, blank = none):', it.due_date ?? '');
-    if (due === null) return;
-    if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) return alert('Use YYYY-MM-DD');
-    act(it, { amount: amt === '' ? null : Number(String(amt).replace(/[,₹\s]/g, '')), due_date: due || null }, 'edit');
+  done_proof: async it => {
+    const proof = prompt('Mark done. Optional proof (UTR / note):', ''); if (proof === null) return;
+    await patch(it, { ...closeUpd('done'), proof: proof || null, seen_at: it.seen_at || now() }, 'done', proof);
   },
-  reopen: it => act(it, { status: 'open', closed_at: null }, 'reopened'),
+  edit: it => openEdit(it),
 };
 
-// ---------- view ----------
-function filtered() {
-  const ent = $('#entity').value, tr = $('#tier').value, q = $('#q').value.toLowerCase();
-  const byTab = {
-    today: i => OPEN.includes(i.status) && (i.tier === 1 || (daysTo(i.due_date) ?? 99) <= 2),
-    payables: i => OPEN.includes(i.status) && i.kind === 'payment_out',
-    receivables: i => OPEN.includes(i.status) && (i.kind === 'payment_in' || i.kind === 'invoice'),
-    tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
-    review: i => i.status === 'needs_review',
-    done: i => i.status === 'done' || i.status === 'cancelled',
-  }[tab];
-  return items.filter(i => byTab(i) && (!ent || i.entity === ent) && (!tr || i.tier == tr) &&
-    (!q || [i.title, i.party, i.requested_by, i.details].join(' ').toLowerCase().includes(q)));
+// ---------- edit dialog ----------
+const form = $('#editForm');
+const fill = (name, opts) => form.elements[name].innerHTML = opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
+fill('kind', Object.entries(KINDS)); fill('tier', Object.entries(TIERS).map(([k, v]) => [k, `${k} - ${v}`]));
+fill('status', STATUSES.map(s => [s, s.replace('_', ' ')])); fill('category', CATS.map(c => [c, c || '-']));
+fill('entity', ENTS.map(e => [e, e || '-']));
+let editing = null;
+async function openEdit(it) {
+  editing = it;
+  $('#editId').textContent = '#' + it.id;
+  for (const f of ['title', 'kind', 'tier', 'amount', 'due_date', 'party', 'entity', 'status', 'category']) form.elements[f].value = it[f] ?? '';
+  form.elements.comment.value = '';
+  $('#editHist').textContent = 'Loading history…';
+  $('#edit').showModal();
+  const { data } = await sb.from('item_events').select('at,type,note,by_user').eq('item_id', it.id).order('at', { ascending: false }).limit(30);
+  $('#editHist').innerHTML = (data || []).map(e => `${when(e.at)} · ${esc(e.type)}${e.note ? ': ' + esc(e.note) : ''}${e.by_user ? ' · ' + esc(e.by_user) : ''}`).join('<br>') || 'No history yet';
+  if (!it.seen_at) ACTIONS.seen(it).then(render);
 }
+$('#edit').addEventListener('close', async () => {
+  if ($('#edit').returnValue !== 'save' || !editing) return;
+  const it = editing, f = form.elements, upd = {};
+  const num = v => v === '' ? null : Number(String(v).replace(/[,₹\s]/g, ''));
+  const vals = { title: f.title.value.trim(), kind: f.kind.value, tier: Number(f.tier.value), amount: num(f.amount.value),
+    due_date: f.due_date.value || null, party: f.party.value.trim() || null, entity: f.entity.value || null,
+    status: f.status.value, category: f.category.value || null };
+  for (const [k, v] of Object.entries(vals)) if ((it[k] ?? null) != v) upd[k] = v;
+  if (['done', 'cancelled'].includes(upd.status)) Object.assign(upd, closeUpd(upd.status));
+  const comment = f.comment.value.trim();
+  if (Object.keys(upd).length) await patch(it, upd, upd.kind ? 'reclassify' : 'edit', comment || null, upd.kind ? 'reclassify' : 'edit');
+  if (comment) {
+    await sb.from('item_events').insert({ item_id: it.id, type: 'comment', note: comment, by_user: user?.email });
+    if (!Object.keys(upd).length) await sb.from('feedback').insert({ item_id: it.id, action: 'comment', before: null, after: null });
+  }
+  render();
+});
 
-function sortForTab(list) {
+// ---------- view ----------
+const byTab = {
+  recent: i => i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3,
+  today: i => OPEN.includes(i.status) && (i.tier === 1 || (daysTo(i.due_date) ?? 99) <= 2),
+  payables: i => OPEN.includes(i.status) && i.kind === 'payment_out',
+  receivables: i => OPEN.includes(i.status) && ['payment_in', 'invoice'].includes(i.kind),
+  tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
+  review: i => i.status === 'needs_review',
+  done: i => i.status === 'done' || i.status === 'cancelled',
+};
+function filtered() {
+  const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
+  const list = items.filter(i => byTab[tab](i) && (!ent || i.entity === ent) && (!tr || i.tier == tr) && (!ch || i.channel === ch) &&
+    (!q || [i.title, i.party, i.requested_by, i.chat_name, i.details].join(' ').toLowerCase().includes(q)));
+  if (tab === 'recent') return list.sort((a, b) => Date.parse(b.received_at || b.created_at) - Date.parse(a.received_at || a.created_at));
   if (tab === 'done') return list.sort((a, b) => (b.closed_at || '').localeCompare(a.closed_at || ''));
   return list.sort((a, b) => a.tier - b.tier || (daysTo(a.due_date) ?? 999) - (daysTo(b.due_date) ?? 999) || (b.amount || 0) - (a.amount || 0));
 }
 
 function card(i) {
   const d = daysTo(i.due_date);
-  const due = d == null ? '' : d < 0 ? `<span class="due over">${-d}d overdue</span>` : d === 0 ? '<span class="due over">due today</span>' : `<span class="due">due in ${d}d (${i.due_date})</span>`;
-  const bal = i.amount_paid > 0 ? ` <span class="meta">paid ${inr(i.amount_paid)}</span>` : '';
-  const age = Math.floor((Date.now() - Date.parse(i.created_at)) / 86400000);
-  const btns = i.status === 'needs_review' ? ['accept:✓ Accept', 'reject:✕ Not needed', 'edit:Edit', 'up:▲', 'down:▼']
-    : ['done', 'cancelled'].includes(i.status) ? ['reopen:Reopen']
-    : ['done:✓ Done', ...(i.amount ? ['part:Part paid'] : []), 'wait:Waiting', 'edit:Edit', 'up:▲', 'down:▼'];
-  return `<article class="item t${i.tier} ${i.tier === 1 ? 't1' : ''}" data-id="${i.id}">
-    <div class="row"><span class="pill">${TIERS[i.tier]}</span><span class="title">${esc(i.title)}</span><span class="amt">${inr(i.amount)}${bal}</span></div>
-    <div class="meta">${due}${i.entity ? `<span>${esc(i.entity)}</span>` : ''}${i.party ? `<span>${esc(i.party)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}${i.times_asked > 1 ? `<span>asked ${i.times_asked}×</span>` : ''}<span>open ${age}d</span>${i.status !== 'open' ? `<span>${i.status.replace('_', ' ')}</span>` : ''}</div>
-    ${i.details || i.source_ref ? `<details><summary>Source</summary><p>${esc(i.details || '')}\n${esc(i.source || '')} ${esc(i.source_ref || '')}${i.proof ? '\nProof: ' + esc(i.proof) : ''}</p></details>` : ''}
-    <div class="actions">${btns.map(b => { const [a, l] = b.split(':'); return `<button class="btn" data-act="${a}">${l}</button>`; }).join('')}</div>
+  const due = d == null ? '' : d < 0 ? `<span class="due over">${-d}d overdue</span>` : d === 0 ? '<span class="due over">due today</span>' : `<span>due ${esc(i.due_date)} (${d}d)</span>`;
+  const btns = i.status === 'needs_review' ? ['accept:✓ Accept', 'reject:✕ Not needed', 'edit:✎ Edit', 'up:▲', 'down:▼']
+    : ['done', 'cancelled'].includes(i.status) ? ['reopen:Reopen', 'edit:✎ Edit']
+    : ['done_proof:✓ Done', ...(i.amount ? ['part:Part paid'] : []), 'wait:Waiting', 'edit:✎ Edit', 'up:▲', 'down:▼'];
+  return `<article class="item t${i.tier} ${i.tier === 1 ? 't1' : ''} ${sel.has(i.id) ? 'selected' : ''}" data-id="${i.id}">
+    <input type="checkbox" data-sel ${sel.has(i.id) ? 'checked' : ''} aria-label="Select #${i.id}">
+    <div>
+      <div class="row">${isNew(i) ? '<span class="newb">NEW</span>' : ''}<span class="pill">${TIERS[i.tier]}</span><span class="kind">${KINDS[i.kind] || esc(i.kind)}</span>
+        <span class="title">${esc(i.title)}</span><span class="amt">${inr(i.amount)}${i.amount_paid > 0 ? ` <small>(paid ${inr(i.amount_paid)})</small>` : ''}</span></div>
+      <div class="src"><b>${CH[i.channel] || esc(i.channel || '?')}</b>${i.chat_name ? `<span>${esc(i.chat_name)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}<span>🕒 ${when(i.received_at || i.created_at)}</span></div>
+      <div class="meta">${due}${i.entity ? `<span>${esc(i.entity)}</span>` : ''}${i.party ? `<span>${esc(i.party)}</span>` : ''}${i.times_asked > 1 ? `<span>asked ${i.times_asked}×</span>` : ''}<span>#${i.id}</span>${i.status !== 'open' ? `<span>${esc(i.status.replace('_', ' '))}</span>` : ''}</div>
+      ${i.details ? `<details><summary>Message</summary><p>${esc(i.details)}${i.proof ? '\nProof: ' + esc(i.proof) : ''}</p></details>` : ''}
+      <div class="actions">${btns.map(b => { const [a, l] = b.split(':'); return `<button class="btn" data-act="${a}">${l}</button>`; }).join('')}</div>
+    </div>
   </article>`;
 }
 
 function render() {
   const open = items.filter(i => OPEN.includes(i.status));
   const outs = open.filter(i => i.kind === 'payment_out');
-  const sum = l => l.reduce((s, i) => s + Math.max(0, (i.amount || 0) - (i.amount_paid || 0)), 0);
-  const due2 = outs.filter(i => { const d = daysTo(i.due_date); return d != null && d <= 2; });
+  const bal = l => l.reduce((s, i) => s + Math.max(0, (i.amount || 0) - (i.amount_paid || 0)), 0);
   const overdue = open.filter(i => (daysTo(i.due_date) ?? 1) < 0).length;
-  const review = items.filter(i => i.status === 'needs_review').length;
+  const counts = Object.fromEntries(TABS.map(([k]) => [k, items.filter(byTab[k]).length]));
+  const newCount = items.filter(isNew).length, urgentNew = items.filter(i => isNew(i) && i.tier === 1).length;
+  $('#tabs').innerHTML = TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}${
+    k === 'recent' && newCount ? `<span class="cnt new">${newCount} new</span>` : k === 'review' && counts.review ? `<span class="cnt ${urgentNew ? 'hot' : ''}">${counts.review}</span>` : ''}</button>`).join('');
   $('#stats').innerHTML = [
     ['hot', open.filter(i => i.tier === 1).length, 'urgent open'],
-    ['hot', lakh(sum(due2)), 'to pay in 48 hrs'],
+    ['hot', lakh(bal(outs.filter(i => (daysTo(i.due_date) ?? 99) <= 2))), 'to pay in 48 hrs'],
     [overdue ? 'hot' : '', overdue, 'overdue'],
-    ['', lakh(sum(outs.filter(i => (daysTo(i.due_date) ?? 99) <= 30))), 'to pay in 30 days'],
-    ['', review, 'need review'],
+    ['', lakh(bal(outs.filter(i => (daysTo(i.due_date) ?? 99) <= 30))), 'to pay in 30 days'],
+    [newCount ? 'hot' : '', newCount, 'new (72 hrs)'],
   ].map(([c, v, l]) => `<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join('');
-  $('#reviewCount').textContent = review ? `(${review})` : '';
-  const list = sortForTab(filtered());
+  $('#markSeen').hidden = tab !== 'recent' || !newCount;
+  const list = filtered();
   $('#list').innerHTML = list.length ? list.slice(0, 300).map(card).join('') + (list.length > 300 ? `<p class="empty">Showing 300 of ${list.length} - use filters</p>` : '')
     : '<p class="empty">Nothing here 🎉</p>';
+  $('#selAll').checked = list.length > 0 && list.slice(0, 300).every(i => sel.has(i.id));
+  $('#bulk').hidden = !sel.size; $('#bulkN').textContent = `${sel.size} selected`;
+  setTitle();
 }
-
 function showError(m) { $('#list').innerHTML = `<p class="empty">Error: ${esc(m)}</p>`; }
 
+// ---------- attention: sound + browser notification + flashing title for new urgent items ----------
+function beep() {
+  try {
+    const ac = new AudioContext(), o = ac.createOscillator(), g = ac.createGain();
+    o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.15;
+    o.start(); o.frequency.setValueAtTime(660, ac.currentTime + 0.18); o.stop(ac.currentTime + 0.4);
+  } catch { }
+}
+function setTitle() {
+  const n = items.filter(i => isNew(i) && i.tier === 1).length;
+  clearInterval(flash);
+  if (!n) { document.title = 'NS Dashboard'; return; }
+  let on = false;
+  flash = setInterval(() => { document.title = (on = !on) ? `🔴 (${n}) URGENT - NS` : 'NS Dashboard'; }, 1000);
+}
+function attention(i) {
+  const t = $('#toast');
+  t.textContent = `🔴 Urgent: ${i.title}${i.amount ? ' - ' + inr(i.amount) : ''}${i.requested_by ? ' (from ' + i.requested_by + ')' : ''}`;
+  t.hidden = false; t.onclick = () => { t.hidden = true; tab = 'recent'; render(); };
+  setTimeout(() => t.hidden = true, 15000);
+  if (!alertsOn) return;
+  beep();
+  if ('Notification' in window && Notification.permission === 'granted')
+    new Notification('NS: urgent request', { body: t.textContent.replace('🔴 Urgent: ', ''), tag: 'ns-' + i.id, requireInteraction: true });
+}
+$('#notif').onclick = async () => {
+  alertsOn = !alertsOn;
+  if (alertsOn && 'Notification' in window && Notification.permission === 'default') await Notification.requestPermission();
+  try { localStorage.setItem('ns.alerts', alertsOn ? '1' : '0'); } catch { }
+  $('#notif').textContent = alertsOn ? '🔔 Alerts on' : '🔕 Alerts off';
+  if (alertsOn) beep();
+};
+
+// ---------- live sync ----------
+function live() {
+  sb.channel('ns-items').on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, ({ eventType, new: n, old: o }) => {
+    const idx = items.findIndex(i => i.id === (n?.id ?? o?.id));
+    const wasUrgent = idx >= 0 && items[idx].tier === 1 && !['done', 'cancelled'].includes(items[idx].status);
+    if (eventType === 'DELETE') { if (idx >= 0) items.splice(idx, 1); }
+    else if (idx >= 0) items[idx] = n; else items.unshift(n);
+    if (n && n.tier === 1 && !wasUrgent && !['done', 'cancelled'].includes(n.status)) attention(n);
+    render();
+  }).subscribe(s => { $('#live').innerHTML = s === 'SUBSCRIBED' ? '<b>●</b> live' : '○ ' + s.toLowerCase(); });
+}
+
 // ---------- wiring ----------
-$('#list').addEventListener('click', e => {
-  const b = e.target.closest('button[data-act]'); if (!b) return;
-  const it = items.find(i => i.id == b.closest('.item').dataset.id);
-  ACTIONS[b.dataset.act](it);
+$('#list').addEventListener('click', async e => {
+  const art = e.target.closest('.item'); if (!art) return;
+  const it = items.find(i => i.id == art.dataset.id);
+  if (e.target.matches('[data-sel]')) { e.target.checked ? sel.add(it.id) : sel.delete(it.id); return render(); }
+  const b = e.target.closest('button[data-act]');
+  if (b) { await ACTIONS[b.dataset.act](it); return render(); }
+  if (e.target.closest('summary') && !it.seen_at) { await ACTIONS.seen(it); render(); }
 });
-document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x === b));
-  tab = b.dataset.tab; render();
+$('#selAll').addEventListener('change', e => { filtered().slice(0, 300).forEach(i => e.target.checked ? sel.add(i.id) : sel.delete(i.id)); render(); });
+document.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', async () => {
+  const a = b.dataset.bulk;
+  if (a === 'clear') { sel.clear(); return render(); }
+  const list = items.filter(i => sel.has(i.id));
+  if (['reject', 'done'].includes(a) && !confirm(`${a === 'done' ? 'Mark done' : 'Mark not needed'}: ${list.length} items?`)) return;
+  b.disabled = true;
+  for (const it of list) await ACTIONS[a](it);
+  b.disabled = false; sel.clear(); render();
 }));
-['#entity', '#tier', '#q'].forEach(s => $(s).addEventListener('input', render));
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (!b) return; tab = b.dataset.tab; sel.clear(); render(); });
+['#entity', '#tier', '#channel', '#q'].forEach(s => $(s).addEventListener('input', render));
 Object.entries(TIERS).forEach(([k, v]) => $('#tier').insertAdjacentHTML('beforeend', `<option value="${k}">${v}</option>`));
-['NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'].forEach(e => $('#entity').insertAdjacentHTML('beforeend', `<option>${e}</option>`));
+ENTS.filter(Boolean).forEach(e => $('#entity').insertAdjacentHTML('beforeend', `<option>${e}</option>`));
+Object.entries(CH).forEach(([k, v]) => $('#channel').insertAdjacentHTML('beforeend', `<option value="${k}">${v}</option>`));
+$('#markSeen').onclick = async () => { for (const it of items.filter(isNew)) await ACTIONS.seen(it); render(); };
 $('#refresh').onclick = load;
 $('#logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+$('#notif').textContent = alertsOn ? '🔔 Alerts on' : '🔕 Alerts off';
 $('#login').addEventListener('submit', async e => {
   e.preventDefault();
   const { error } = await sb.auth.signInWithPassword({ email: $('#email').value, password: $('#password').value });
   $('#loginErr').textContent = error ? error.message : '';
 });
 
+let started = false;
 sb.auth.onAuthStateChange((_ev, session) => {
   user = session?.user || null;
   $('#login').hidden = !!user; $('#app').hidden = !user;
-  if (user) load();
+  if (user && !started) { started = true; load(); live(); }
 });
-setInterval(() => user && !document.hidden && load(), 120000);
-
-window.__ns = { setItems: d => { items = d; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); } }; // local preview hook, no data access
+setInterval(() => user && !document.hidden && load(), 300000); // safety net if the live channel drops
+// local preview with sample data only (no database access); inert on the published site
+if (location.hostname === 'localhost') window.__ns = { preview: d => { items = d; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
 </script>
 </body>
 </html>
