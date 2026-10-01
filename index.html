@@ -44,6 +44,7 @@
   .kind { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--line); white-space: nowrap; }
   .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
+  .health { background: var(--t1); color: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
   .dup { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: #fef3c7; color: #78350f; font-size: 13px; }
   @media (prefers-color-scheme: dark) { .dup { background: #3b2f12; color: #fde68a; } }
   .dup button { font-size: 12px; padding: 2px 8px; }
@@ -90,6 +91,7 @@
     <nav role="tablist" id="tabs"></nav>
   </header>
   <main>
+    <div id="health" class="health" hidden></div>
     <section class="stats" id="stats"></section>
     <div class="filters">
       <input type="checkbox" id="selAll" title="Select all shown" aria-label="Select all shown">
@@ -410,6 +412,16 @@ sb.auth.onAuthStateChange((_ev, session) => {
   if (user && !started) { started = true; load(); live(); }
 });
 setInterval(() => user && !document.hidden && load(), 300000); // safety net if the live channel drops
+// system health: n8n writes a heartbeat every minute with the WhatsApp session status
+async function health() {
+  const { data } = await sb.from('cursors').select('last_seen,updated_at').eq('source', 'health').maybeSingle();
+  const age = data ? (Date.now() - Date.parse(data.updated_at)) / 60000 : Infinity;
+  const msg = !data ? '' : age > 3 ? `⚠ System offline since ${when(data.updated_at)} - PC asleep or n8n stopped. New WhatsApp requests and alerts are delayed until it is back.`
+    : data.last_seen !== 'WORKING' ? `⚠ WhatsApp session is ${data.last_seen} - requests and Busy invoices are not flowing. Check the WAHA dashboard / phone.` : '';
+  $('#health').hidden = !msg; $('#health').textContent = msg;
+}
+setInterval(() => user && health(), 60000);
+sb.auth.onAuthStateChange((_e, s) => s && health());
 // local preview with sample data only (no database access); inert on the published site
 if (location.hostname === 'localhost') window.__ns = { preview: d => { items = d; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
 </script>
