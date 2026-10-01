@@ -44,6 +44,9 @@
   .kind { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--line); white-space: nowrap; }
   .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
+  .dup { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: #fef3c7; color: #78350f; font-size: 13px; }
+  @media (prefers-color-scheme: dark) { .dup { background: #3b2f12; color: #fde68a; } }
+  .dup button { font-size: 12px; padding: 2px 8px; }
   .actions { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
   .actions button { font-size: 13px; padding: 3px 9px; }
   details { margin-top: 5px; color: var(--muted); font-size: 13px; } details p { white-space: pre-wrap; margin: 4px 0 0; }
@@ -208,6 +211,15 @@ const ACTIONS = {
     await patch(it, { ...closeUpd('done'), proof: proof || null, seen_at: it.seen_at || now() }, 'done', proof);
   },
   edit: it => openEdit(it),
+  // possible duplicate: merge into the existing item, or keep both (both choices teach triage)
+  merge: async it => {
+    const t = items.find(i => i.id === it.dup_of);
+    if (!t || !confirm(`Merge #${it.id} into #${t.id} "${t.title}"?`)) return;
+    await patch(t, { times_asked: (t.times_asked || 1) + 1 }, 'merge', `merged #${it.id}: ${it.title}`);
+    await sb.from('feedback').insert({ item_id: t.id, action: 'merge', before: { new_text: it.title }, after: { merged_into: t.id, title: t.title } });
+    await patch(it, { ...closeUpd('cancelled'), proof: `merged into #${t.id}`, dup_of: null, seen_at: it.seen_at || now() }, 'merged', `into #${t.id}`);
+  },
+  keep: it => patch(it, { dup_of: null }, 'not_duplicate', `kept separate from #${it.dup_of}`),
 };
 
 // ---------- edit dialog ----------
@@ -278,6 +290,8 @@ function card(i) {
         <span class="title">${esc(i.title)}</span><span class="amt">${inr(i.amount)}${i.amount_paid > 0 ? ` <small>(paid ${inr(i.amount_paid)})</small>` : ''}</span></div>
       <div class="src"><b>${CH[i.channel] || esc(i.channel || '?')}</b>${i.chat_name ? `<span>${esc(i.chat_name)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}<span>🕒 ${when(i.received_at || i.created_at)}</span></div>
       <div class="meta">${due}${i.entity ? `<span>${esc(i.entity)}</span>` : ''}${i.party ? `<span>${esc(i.party)}</span>` : ''}${i.times_asked > 1 ? `<span>asked ${i.times_asked}×</span>` : ''}<span>#${i.id}</span>${i.status !== 'open' ? `<span>${esc(i.status.replace('_', ' '))}</span>` : ''}</div>
+      ${i.dup_of && !['done', 'cancelled'].includes(i.status) ? (() => { const t = items.find(x => x.id === i.dup_of);
+        return `<div class="dup">⚠ Possible duplicate of #${i.dup_of}${t ? ': ' + esc(t.title) : ''} <button class="btn" data-act="merge">Merge</button> <button class="btn" data-act="keep">Keep both</button></div>`; })() : ''}
       ${i.details ? `<details><summary>Message</summary><p>${esc(i.details)}${i.proof ? '\nProof: ' + esc(i.proof) : ''}</p></details>` : ''}
       <div class="actions">${btns.map(b => { const [a, l] = b.split(':'); return `<button class="btn" data-act="${a}">${l}</button>`; }).join('')}</div>
     </div>
