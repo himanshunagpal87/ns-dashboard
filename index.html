@@ -45,6 +45,12 @@
   .auto { font-size: 11px; border: 1px dashed var(--muted); color: var(--muted); background: none; border-radius: 99px; padding: 0 7px; cursor: pointer; }
   .age { font-size: 12px; border-radius: 99px; padding: 0 7px; } .age.fresh { background: var(--line); }
   .age.aging { background: #fef3c7; color: #78350f; } .age.old { background: var(--t1); color: #fff; }
+  .tbl { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+  .tbl table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .tbl th, .tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; vertical-align: top; }
+  .tbl th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-weight: 600; }
+  .tbl td.num { text-align: right; font-variant-numeric: tabular-nums; } .tbl td.wrap { white-space: normal; min-width: 180px; }
+  .tbl tr.dupe td { color: var(--muted); }
   .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
   .health { background: var(--t1); color: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
@@ -163,7 +169,7 @@ const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 't
 const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
 const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
-const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['notes', 'Notes & Links']];
+const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['notes', 'Notes & Links']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -177,7 +183,7 @@ const ageFlag = i => { if (['done', 'cancelled'].includes(i.status)) return '';
   return `<span class="age ${c}" title="Days since the request was received">⏳ ${d ? d + 'd old' : 'today'}</span>`; };
 const isNew = i => !i.seen_at && i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3;
 
-let notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
+let mis = [], followups = [], notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
 try { alertsOn = localStorage.getItem('ns.alerts') === '1'; } catch { }
 
 // ---------- data ----------
@@ -187,6 +193,10 @@ async function load() {
   items = data;
   const n = await sb.from('notes').select('*').eq('archived', false).order('received_at', { ascending: false }).limit(1000);
   notes = n.data || [];
+  const [m, f] = await Promise.all([
+    sb.from('mis_entries').select('*').order('received_at', { ascending: false }).limit(1500),
+    sb.from('followups').select('*').order('received_at', { ascending: false }).limit(500)]);
+  mis = m.data || []; followups = f.data || [];
   render();
 }
 
@@ -294,7 +304,7 @@ const byTab = {
   tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
   review: i => i.status === 'needs_review',
   done: i => i.status === 'done' || i.status === 'cancelled',
-  notes: () => false,
+  notes: () => false, mis: () => false, followups: () => false,
 };
 function filtered() {
   const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
@@ -344,6 +354,8 @@ function render() {
   ].map(([c, v, l]) => `<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('#markSeen').hidden = tab !== 'recent' || !newCount;
   if (tab === 'notes') return renderNotes();
+  if (tab === 'mis') return renderMis();
+  if (tab === 'followups') return renderFollowups();
   const list = filtered();
   $('#list').innerHTML = list.length ? list.slice(0, 300).map(card).join('') + (list.length > 300 ? `<p class="empty">Showing 300 of ${list.length} - use filters</p>` : '')
     : '<p class="empty">Nothing here 🎉</p>';
@@ -386,6 +398,64 @@ $('#list').addEventListener('click', async e => {
   if (d.ndel) return notesDo([+d.ndel], 'delete');
   if (d.nbulk === 'clear') { noteSel.clear(); return renderNotes(); }
   if (d.nbulk) return notesDo([...noteSel], d.nbulk);
+});
+
+// ---------- MIS register (orders / dispatches / stock) ----------
+const MIS_KINDS = { order: 'Order', dispatch: 'Dispatch', pending_dispatch: 'Pending dispatch', stock_in: 'Stock in', other: 'Other' };
+let misKind = '';
+function renderMis() {
+  const q = $('#q').value.toLowerCase(), ent = $('#entity').value;
+  const list = mis.filter(r => (!misKind || r.kind === misKind) && (!ent || r.entity === ent) &&
+    (!q || [r.party, r.product, r.vehicle, r.driver, r.ref_no, r.destination, r.booked_by, r.chat_name].join(' ').toLowerCase().includes(q)));
+  // same truck + product + qty on the same day (forwarded to several groups): show it, but mark the repeats
+  const seen = new Set();
+  const isRepeat = r => { if (r.kind !== 'dispatch' || !r.vehicle) return false;
+    const k = [r.vehicle.replace(/\W/g, '').toUpperCase(), r.product, r.qty, istDate(r.received_at)].join('|');
+    return seen.has(k) ? true : (seen.add(k), false); };
+  const counts = Object.fromEntries(Object.keys(MIS_KINDS).map(k => [k, mis.filter(r => r.kind === k).length]));
+  $('#bulk').hidden = true; $('#markSeen').hidden = true;
+  $('#list').innerHTML = `<div class="filters">${[['', `All (${mis.length})`], ...Object.entries(MIS_KINDS).map(([k, l]) => [k, `${l} (${counts[k]})`])]
+      .map(([k, l]) => `<button class="btn ${misKind === k ? 'primary' : ''}" data-miskind="${k}">${l}</button>`).join('')}</div>
+    <div class="tbl"><table><thead><tr><th>Received</th><th>Type</th><th>Party</th><th>Product</th><th>Qty</th><th>Rate</th><th>Amount</th>
+      <th>Vehicle / driver</th><th>Ref</th><th>To</th><th>Entity</th><th>From</th><th>Status</th></tr></thead><tbody>
+    ${list.slice(0, 600).map(r => { const rp = isRepeat(r); return `<tr class="${rp ? 'dupe' : ''}" title="${esc(r.message || '')}">
+      <td>${when(r.received_at)}</td><td>${MIS_KINDS[r.kind] || esc(r.kind)}${rp ? ' <small>(repeat)</small>' : ''}</td><td class="wrap">${esc(r.party)}</td>
+      <td class="wrap">${esc(r.product)}</td><td class="num">${r.qty ?? ''} ${esc(r.unit || '')}</td><td class="num">${r.rate ? inr(r.rate) : ''}</td>
+      <td class="num">${r.amount ? inr(r.amount) : ''}</td><td>${esc([r.vehicle, r.driver].filter(Boolean).join(' · '))}</td><td>${esc(r.ref_no)}</td>
+      <td>${esc(r.destination)}</td><td>${esc(r.entity)}</td><td>${esc(r.booked_by)}<br><small>${esc(r.chat_name)}</small></td>
+      <td><select data-misstatus="${r.id}">${['logged', 'dispatched', 'delivered', 'cancelled'].map(v => `<option ${r.status === v ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+    </tr>`; }).join('')}</tbody></table></div>${list.length > 600 ? `<p class="empty">Showing 600 of ${list.length} - use search</p>` : ''}`;
+  setTitle();
+}
+// ---------- staff follow-ups (for the future follow-up automation) ----------
+function renderFollowups() {
+  const q = $('#q').value.toLowerCase();
+  const list = followups.filter(f => !q || [f.instruction, f.requested_by, f.directed_to, f.chat_name].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || Date.parse(b.received_at) - Date.parse(a.received_at));
+  $('#bulk').hidden = true; $('#markSeen').hidden = true;
+  $('#list').innerHTML = list.length ? list.map(f => `<article class="item t5"><span></span><div>
+      <div class="row"><span class="kind">${esc(f.status)}</span><span class="title">${esc(f.instruction)}</span></div>
+      <div class="src"><b>${esc(f.requested_by || '?')} → ${esc(f.directed_to || 'staff')}</b>${f.chat_name ? `<span>${esc(f.chat_name)}</span>` : ''}<span>🕒 ${when(f.received_at)}</span>${ageFlag({ status: f.status === 'open' ? 'open' : 'done', received_at: f.received_at })}</div>
+      ${f.message ? `<details><summary>Message</summary><p>${esc(f.message)}</p></details>` : ''}
+      <div class="actions">${f.status === 'open' ? `<button class="btn" data-fu="${f.id}" data-fust="answered">✓ Answered</button><button class="btn" data-fu="${f.id}" data-fust="closed">Close</button>`
+        : `<button class="btn" data-fu="${f.id}" data-fust="open">Reopen</button>`}</div></div></article>`).join('')
+    : '<p class="empty">No follow-ups</p>';
+  setTitle();
+}
+$('#list').addEventListener('click', async e => {
+  const d = e.target.dataset || {};
+  if (d.miskind !== undefined && tab === 'mis') { misKind = d.miskind; return renderMis(); }
+  if (d.fu) {
+    const { error } = await sb.from('followups').update({ status: d.fust }).eq('id', d.fu);
+    if (error) return alert(error.message);
+    followups.find(f => f.id == d.fu).status = d.fust; renderFollowups();
+  }
+});
+$('#list').addEventListener('change', async e => {
+  const id = e.target.dataset && e.target.dataset.misstatus; if (!id) return;
+  const { error } = await sb.from('mis_entries').update({ status: e.target.value }).eq('id', id);
+  if (error) return alert(error.message);
+  mis.find(r => r.id == id).status = e.target.value;
 });
 
 function showError(m) { $('#list').innerHTML = `<p class="empty">Error: ${esc(m)}</p>`; }
@@ -432,6 +502,10 @@ function live() {
     else if (idx >= 0) items[idx] = n; else items.unshift(n);
     if (n && n.tier === 1 && !wasUrgent && !['done', 'cancelled'].includes(n.status)) attention(n);
     render();
+  }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mis_entries' }, ({ new: n }) => {
+    mis.unshift(n); if (tab === 'mis') render();
+  }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'followups' }, ({ new: n }) => {
+    followups.unshift(n); if (tab === 'followups') render();
   }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notes' }, ({ new: n }) => {
     notes.unshift(n); if (tab === 'notes') render();
   }).subscribe(s => { $('#live').innerHTML = s === 'SUBSCRIBED' ? '<b>●</b> live' : '○ ' + s.toLowerCase(); });
@@ -489,7 +563,7 @@ async function health() {
 setInterval(() => user && health(), 60000);
 sb.auth.onAuthStateChange((_e, s) => s && health());
 // local preview with sample data only (no database access); inert on the published site
-if (location.hostname === 'localhost') window.__ns = { preview: (d, n = []) => { items = d; notes = n; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
+if (location.hostname === 'localhost') window.__ns = { preview: (d, n = [], m = [], f = []) => { items = d; notes = n; mis = m; followups = f; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
 </script>
 </body>
 </html>
