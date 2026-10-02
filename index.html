@@ -169,7 +169,7 @@ const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 't
 const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
 const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
-const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['notes', 'Notes & Links']];
+const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['queries', 'Queries'], ['notes', 'Notes & Links']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -183,7 +183,7 @@ const ageFlag = i => { if (['done', 'cancelled'].includes(i.status)) return '';
   return `<span class="age ${c}" title="Days since the request was received">⏳ ${d ? d + 'd old' : 'today'}</span>`; };
 const isNew = i => !i.seen_at && i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3;
 
-let mis = [], followups = [], notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
+let mis = [], followups = [], queries = [], notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
 try { alertsOn = localStorage.getItem('ns.alerts') === '1'; } catch { }
 
 // ---------- data ----------
@@ -197,6 +197,7 @@ async function load() {
     sb.from('mis_entries').select('*').order('received_at', { ascending: false }).limit(1500),
     sb.from('followups').select('*').order('received_at', { ascending: false }).limit(500)]);
   mis = m.data || []; followups = f.data || [];
+  queries = (await sb.from('queries').select('*').order('received_at', { ascending: false }).limit(1000)).data || [];
   render();
 }
 
@@ -304,7 +305,7 @@ const byTab = {
   tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
   review: i => i.status === 'needs_review',
   done: i => i.status === 'done' || i.status === 'cancelled',
-  notes: () => false, mis: () => false, followups: () => false,
+  notes: () => false, mis: () => false, followups: () => false, queries: () => false,
 };
 function filtered() {
   const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
@@ -356,6 +357,7 @@ function render() {
   if (tab === 'notes') return renderNotes();
   if (tab === 'mis') return renderMis();
   if (tab === 'followups') return renderFollowups();
+  if (tab === 'queries') return renderQueries();
   const list = filtered();
   $('#list').innerHTML = list.length ? list.slice(0, 300).map(card).join('') + (list.length > 300 ? `<p class="empty">Showing 300 of ${list.length} - use filters</p>` : '')
     : '<p class="empty">Nothing here 🎉</p>';
@@ -428,18 +430,25 @@ function renderMis() {
   setTitle();
 }
 // ---------- staff follow-ups (for the future follow-up automation) ----------
+const FU_KINDS = { order_confirmation: '📦 Confirm my order', assigned_task: '👉 My task to someone', staff_instruction: '👥 Family → staff' };
+let fuKind = '', fuWho = '';
 function renderFollowups() {
   const q = $('#q').value.toLowerCase();
-  const list = followups.filter(f => !q || [f.instruction, f.requested_by, f.directed_to, f.chat_name].join(' ').toLowerCase().includes(q))
+  const people = [...new Set(followups.filter(f => f.status === 'open').map(f => f.directed_to).filter(Boolean))].sort();
+  const list = followups.filter(f => (!fuKind || f.kind === fuKind) && (!fuWho || f.directed_to === fuWho) &&
+      (!q || [f.instruction, f.requested_by, f.directed_to, f.chat_name].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || Date.parse(b.received_at) - Date.parse(a.received_at));
   $('#bulk').hidden = true; $('#markSeen').hidden = true;
-  $('#list').innerHTML = list.length ? list.map(f => `<article class="item t5"><span></span><div>
-      <div class="row"><span class="kind">${esc(f.status)}</span><span class="title">${esc(f.instruction)}</span></div>
+  const head = `<div class="filters">${[['', 'All'], ...Object.entries(FU_KINDS)].map(([k, l]) =>
+      `<button class="btn ${fuKind === k ? 'primary' : ''}" data-fukind="${k}">${l} (${followups.filter(f => f.status === 'open' && (!k || f.kind === k)).length})</button>`).join('')}
+    <select data-fuwho><option value="">Assigned to: anyone</option>${people.map(p => `<option ${fuWho === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>`;
+  $('#list').innerHTML = head + (list.length ? list.map(f => `<article class="item t5"><span></span><div>
+      <div class="row"><span class="kind">${FU_KINDS[f.kind] || esc(f.kind)}</span><span class="kind">${esc(f.status)}</span><span class="title">${esc(f.instruction)}</span></div>
       <div class="src"><b>${esc(f.requested_by || '?')} → ${esc(f.directed_to || 'staff')}</b>${f.chat_name ? `<span>${esc(f.chat_name)}</span>` : ''}<span>🕒 ${when(f.received_at)}</span>${ageFlag({ status: f.status === 'open' ? 'open' : 'done', received_at: f.received_at })}</div>
       ${f.message ? `<details><summary>Message</summary><p>${esc(f.message)}</p></details>` : ''}
       <div class="actions">${f.status === 'open' ? `<button class="btn" data-fu="${f.id}" data-fust="answered">✓ Answered</button><button class="btn" data-fu="${f.id}" data-fust="closed">Close</button>`
         : `<button class="btn" data-fu="${f.id}" data-fust="open">Reopen</button>`}</div></div></article>`).join('')
-    : '<p class="empty">No follow-ups</p>';
+    : '<p class="empty">No follow-ups</p>');
   setTitle();
 }
 $('#list').addEventListener('click', async e => {
@@ -451,6 +460,35 @@ $('#list').addEventListener('click', async e => {
     followups.find(f => f.id == d.fu).status = d.fust; renderFollowups();
   }
 });
+// ---------- Queries received (for future auto-reply strategies) ----------
+const Q_CATS = { price: 'Price', stock: 'Stock', delivery_status: 'Delivery status', order: 'Order', payment: 'Payment', document: 'Document', meeting: 'Meeting', other: 'Other' };
+let qCat = '';
+function renderQueries() {
+  const q = $('#q').value.toLowerCase();
+  const list = queries.filter(x => (!qCat || x.category === qCat) && (!q || [x.question, x.asker, x.chat_name, x.message].join(' ').toLowerCase().includes(q)));
+  $('#bulk').hidden = true; $('#markSeen').hidden = true;
+  $('#list').innerHTML = `<div class="filters">${[['', `All (${queries.length})`], ...Object.entries(Q_CATS).map(([k, l]) => [k, `${l} (${queries.filter(x => x.category === k).length})`])]
+      .map(([k, l]) => `<button class="btn ${qCat === k ? 'primary' : ''}" data-qcat="${k}">${l}</button>`).join('')}</div>`
+    + (list.length ? list.slice(0, 400).map(x => `<article class="item t5"><span></span><div>
+      <div class="row"><span class="kind">${Q_CATS[x.category] || esc(x.category)}</span><span class="title">${esc(x.question)}</span>${x.answered ? '<span class="kind">answered</span>' : ''}</div>
+      <div class="src"><b>${esc(x.asker || '?')}</b>${x.chat_name ? `<span>${esc(x.chat_name)}</span>` : ''}<span>🕒 ${when(x.received_at)}</span></div>
+      ${x.message ? `<details><summary>Message</summary><p>${esc(x.message)}</p></details>` : ''}
+      <div class="actions"><button class="btn" data-qans="${x.id}">${x.answered ? 'Mark unanswered' : '✓ Answered'}</button></div></div></article>`).join('')
+      : '<p class="empty">No queries logged yet</p>');
+  setTitle();
+}
+$('#list').addEventListener('click', async e => {
+  const d = e.target.dataset || {};
+  if (d.fukind !== undefined && tab === 'followups') { fuKind = d.fukind; return renderFollowups(); }
+  if (d.qcat !== undefined && tab === 'queries') { qCat = d.qcat; return renderQueries(); }
+  if (d.qans) {
+    const x = queries.find(y => y.id == d.qans);
+    const { error } = await sb.from('queries').update({ answered: !x.answered }).eq('id', x.id);
+    if (error) return alert(error.message);
+    x.answered = !x.answered; renderQueries();
+  }
+});
+$('#list').addEventListener('change', e => { if (e.target.dataset && e.target.dataset.fuwho !== undefined) { fuWho = e.target.value; renderFollowups(); } });
 $('#list').addEventListener('change', async e => {
   const id = e.target.dataset && e.target.dataset.misstatus; if (!id) return;
   const { error } = await sb.from('mis_entries').update({ status: e.target.value }).eq('id', id);
@@ -506,6 +544,8 @@ function live() {
     mis.unshift(n); if (tab === 'mis') render();
   }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'followups' }, ({ new: n }) => {
     followups.unshift(n); if (tab === 'followups') render();
+  }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'queries' }, ({ new: n }) => {
+    queries.unshift(n); if (tab === 'queries') render();
   }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notes' }, ({ new: n }) => {
     notes.unshift(n); if (tab === 'notes') render();
   }).subscribe(s => { $('#live').innerHTML = s === 'SUBSCRIBED' ? '<b>●</b> live' : '○ ' + s.toLowerCase(); });
@@ -563,7 +603,7 @@ async function health() {
 setInterval(() => user && health(), 60000);
 sb.auth.onAuthStateChange((_e, s) => s && health());
 // local preview with sample data only (no database access); inert on the published site
-if (location.hostname === 'localhost') window.__ns = { preview: (d, n = [], m = [], f = []) => { items = d; notes = n; mis = m; followups = f; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
+if (location.hostname === 'localhost') window.__ns = { preview: (d, n = [], m = [], f = [], qs = []) => { items = d; notes = n; mis = m; followups = f; queries = qs; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
 </script>
 </body>
 </html>
