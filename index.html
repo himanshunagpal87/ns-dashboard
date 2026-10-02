@@ -169,7 +169,7 @@ const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 't
 const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
 const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
-const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['queries', 'Queries'], ['notes', 'Notes & Links']];
+const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['queries', 'Queries'], ['notes', 'Notes & Links'], ['learning', '🧠 AI learning']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -183,7 +183,7 @@ const ageFlag = i => { if (['done', 'cancelled'].includes(i.status)) return '';
   return `<span class="age ${c}" title="Days since the request was received">⏳ ${d ? d + 'd old' : 'today'}</span>`; };
 const isNew = i => !i.seen_at && i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3;
 
-let mis = [], followups = [], queries = [], notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
+let comments = [], rules = [], mis = [], followups = [], queries = [], notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
 try { alertsOn = localStorage.getItem('ns.alerts') === '1'; } catch { }
 
 // ---------- data ----------
@@ -197,6 +197,7 @@ async function load() {
     sb.from('mis_entries').select('*').order('received_at', { ascending: false }).limit(1500),
     sb.from('followups').select('*').order('received_at', { ascending: false }).limit(500)]);
   mis = m.data || []; followups = f.data || [];
+  await loadLearning();
   queries = (await sb.from('queries').select('*').order('received_at', { ascending: false }).limit(1000)).data || [];
   render();
 }
@@ -305,7 +306,7 @@ const byTab = {
   tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
   review: i => i.status === 'needs_review',
   done: i => i.status === 'done' || i.status === 'cancelled',
-  notes: () => false, mis: () => false, followups: () => false, queries: () => false,
+  notes: () => false, learning: () => false, mis: () => false, followups: () => false, queries: () => false,
 };
 function filtered() {
   const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
@@ -345,7 +346,7 @@ function render() {
   const counts = Object.fromEntries(TABS.map(([k]) => [k, items.filter(byTab[k]).length]));
   const newCount = items.filter(isNew).length, urgentNew = items.filter(i => isNew(i) && i.tier === 1).length;
   $('#tabs').innerHTML = TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}${
-    k === 'recent' && newCount ? `<span class="cnt new">${newCount} new</span>` : k === 'review' && counts.review ? `<span class="cnt ${urgentNew ? 'hot' : ''}">${counts.review}</span>` : ''}</button>`).join('');
+    k === 'learning' && pendingComments() ? `<span class="cnt new">${pendingComments()} new</span>` : k === 'recent' && newCount ? `<span class="cnt new">${newCount} new</span>` : k === 'review' && counts.review ? `<span class="cnt ${urgentNew ? 'hot' : ''}">${counts.review}</span>` : ''}</button>`).join('');
   $('#stats').innerHTML = [
     ['hot', open.filter(i => i.tier === 1).length, 'urgent open'],
     ['hot', lakh(bal(outs.filter(i => (daysTo(i.due_date) ?? 99) <= 2))), 'to pay in 48 hrs'],
@@ -358,6 +359,7 @@ function render() {
   if (tab === 'mis') return renderMis();
   if (tab === 'followups') return renderFollowups();
   if (tab === 'queries') return renderQueries();
+  if (tab === 'learning') return renderLearning();
   const list = filtered();
   $('#list').innerHTML = list.length ? list.slice(0, 300).map(card).join('') + (list.length > 300 ? `<p class="empty">Showing 300 of ${list.length} - use filters</p>` : '')
     : '<p class="empty">Nothing here 🎉</p>';
@@ -496,6 +498,53 @@ $('#list').addEventListener('change', async e => {
   mis.find(r => r.id == id).status = e.target.value;
 });
 
+// ---------- AI learning: your comments -> what the AI inferred and changed; learned rules ----------
+const pendingComments = () => comments.filter(c => !c.processed_at).length;
+let learnState = '';
+async function loadLearning() {
+  const [c, r, k] = await Promise.all([
+    sb.from('item_events').select('id,at,note,processed_at,insight,applied,idea,item:items(id,title,kind,status)').eq('type', 'comment').order('id', { ascending: false }).limit(300),
+    sb.from('rules').select('*').eq('match_type', 'learned').order('id', { ascending: false }),
+    sb.from('cursors').select('last_seen').eq('source', 'comments_request').maybeSingle()]);
+  comments = c.data || []; rules = r.data || []; learnState = k.data?.last_seen || '';
+}
+function renderLearning() {
+  $('#bulk').hidden = true; $('#markSeen').hidden = true;
+  const n = pendingComments(), busy = learnState === 'requested' || learnState === 'running';
+  $('#list').innerHTML = `<div class="filters"><button class="btn primary" id="learnGo" ${!n || busy ? 'disabled' : ''}>🧠 Process ${n} new comment${n === 1 ? '' : 's'}</button>
+      <span>${busy ? '⏳ AI is reading your comments (1-3 min)…' : learnState.startsWith('done') ? `Last run: ${esc(learnState.slice(5))} processed` : ''}</span></div>
+    ${rules.length ? `<h3>Rules learned (${rules.filter(r => r.active).length} active - used for every new message)</h3>` + rules.map(r => `<article class="item t5"><span></span><div>
+      <div class="row"><span class="title">${esc(r.effect)}</span>${r.active ? '' : '<span class="kind">off</span>'}</div>
+      <div class="src"><span>${esc(r.note)}</span></div>
+      <div class="actions"><button class="btn" data-rule="${r.id}">${r.active ? 'Turn off' : 'Turn on'}</button></div></div></article>`).join('') : ''}
+    <h3>Your comments</h3>` + (comments.length ? comments.map(c => `<article class="item t5"><span></span><div>
+      <div class="row"><span class="kind">${c.processed_at ? '✓ processed' : 'new'}</span><span class="title">“${esc(c.note)}”</span></div>
+      <div class="src"><b>#${c.item?.id} ${esc(c.item?.title)}</b><span>🕒 ${when(c.at)}</span></div>
+      ${c.insight ? `<p style="margin:4px 0">💡 ${esc(c.insight)}</p>` : ''}${c.applied ? `<p style="margin:4px 0"><small>Done: ${esc(c.applied)}</small></p>` : ''}
+      ${c.idea ? `<p style="margin:4px 0"><small>🛠 Idea for later: ${esc(c.idea)}</small></p>` : ''}</div></article>`).join('') : '<p class="empty">No comments yet - use ✎ Edit on any item</p>');
+  setTitle();
+}
+$('#list').addEventListener('click', async e => {
+  if (tab !== 'learning') return;
+  if (e.target.id === 'learnGo') {
+    const { error } = await sb.from('cursors').upsert({ source: 'comments_request', last_seen: 'requested', updated_at: now() });
+    if (error) return alert(error.message);
+    learnState = 'requested'; renderLearning();
+    const poll = setInterval(async () => {   // the n8n job checks every minute; stop polling once it reports done (or after 10 min)
+      await loadLearning();
+      if (!['requested', 'running'].includes(learnState) || Date.now() - t0 > 600000) { clearInterval(poll); await load(); }
+      else if (tab === 'learning') renderLearning();
+    }, 15000), t0 = Date.now();
+  }
+  const id = e.target.dataset?.rule;
+  if (id) {
+    const r = rules.find(x => x.id == id);
+    const { error } = await sb.from('rules').update({ active: !r.active }).eq('id', id);
+    if (error) return alert(error.message);
+    r.active = !r.active; renderLearning();
+  }
+});
+
 function showError(m) { $('#list').innerHTML = `<p class="empty">Error: ${esc(m)}</p>`; }
 
 // ---------- attention: sound + browser notification + flashing title for new urgent items ----------
@@ -603,7 +652,7 @@ async function health() {
 setInterval(() => user && health(), 60000);
 sb.auth.onAuthStateChange((_e, s) => s && health());
 // local preview with sample data only (no database access); inert on the published site
-if (location.hostname === 'localhost') window.__ns = { preview: (d, n = [], m = [], f = [], qs = []) => { items = d; notes = n; mis = m; followups = f; queries = qs; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
+if (location.hostname === 'localhost') window.__ns = { preview: (d, n = [], m = [], f = [], qs = [], c = [], r = []) => { items = d; notes = n; mis = m; followups = f; queries = qs; comments = c; rules = r; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
 </script>
 </body>
 </html>
