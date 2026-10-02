@@ -43,6 +43,8 @@
   .pill { font-size: 12px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--tc); color: var(--tc); white-space: nowrap; }
   .kind { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--line); white-space: nowrap; }
   .auto { font-size: 11px; border: 1px dashed var(--muted); color: var(--muted); background: none; border-radius: 99px; padding: 0 7px; cursor: pointer; }
+  .age { font-size: 12px; border-radius: 99px; padding: 0 7px; } .age.fresh { background: var(--line); }
+  .age.aging { background: #fef3c7; color: #78350f; } .age.old { background: var(--t1); color: #fff; }
   .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
   .health { background: var(--t1); color: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
@@ -114,6 +116,9 @@
   <button class="btn" data-bulk="to_payment_out">→ Payable</button>
   <button class="btn" data-bulk="to_payment_in">→ Receivable</button>
   <button class="btn" data-bulk="to_task">→ Task</button>
+  <button class="btn" data-bulk="ext1">+1d</button>
+  <button class="btn" data-bulk="ext3">+3d</button>
+  <button class="btn" data-bulk="ext7">+7d</button>
   <button class="btn" data-bulk="up">▲</button>
   <button class="btn" data-bulk="down">▼</button>
   <button class="btn" data-bulk="clear">Clear</button>
@@ -158,7 +163,7 @@ const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 't
 const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
 const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
-const TABS = [['recent', 'Recent'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['notes', 'Notes & Links']];
+const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['notes', 'Notes & Links']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -166,6 +171,10 @@ const lakh = n => n >= 1e7 ? (n / 1e7).toFixed(2) + ' Cr' : n >= 1e5 ? (n / 1e5)
 const istDate = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });   // YYYY-MM-DD
 const when = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
 const daysTo = d => d ? Math.round((Date.parse(d) - Date.parse(istDate(Date.now()))) / 86400000) : null;
+const ageDays = i => Math.floor((Date.now() - Date.parse(i.received_at || i.created_at)) / 86400000);
+const ageFlag = i => { if (['done', 'cancelled'].includes(i.status)) return '';
+  const d = ageDays(i), c = d > 7 ? 'old' : d > 3 ? 'aging' : 'fresh';
+  return `<span class="age ${c}" title="Days since the request was received">⏳ ${d ? d + 'd old' : 'today'}</span>`; };
 const isNew = i => !i.seen_at && i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3;
 
 let notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
@@ -217,6 +226,7 @@ const ACTIONS = {
     await patch(it, { ...closeUpd('done'), proof: proof || null, seen_at: it.seen_at || now() }, 'done', proof);
   },
   edit: it => openEdit(it),
+  ext1: it => extend(it, 1), ext3: it => extend(it, 3), ext7: it => extend(it, 7),
   // possible duplicate: merge into the existing item, or keep both (both choices teach triage)
   merge: async it => {
     const t = items.find(i => i.id === it.dup_of);
@@ -227,6 +237,15 @@ const ACTIONS = {
   },
   keep: it => patch(it, { dup_of: null }, 'not_duplicate', `kept separate from #${it.dup_of}`),
 };
+
+function extend(it, n) {
+  const today = istDate(Date.now()), base = it.due_date && it.due_date > today ? it.due_date : today;
+  const d = new Date(base + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
+  const due = d.toISOString().slice(0, 10);
+  // if it was only urgent because of the date, restore its earlier priority (the server re-escalates if still due soon)
+  const upd = { due_date: due, ...(it.escalated_from && it.tier === 1 ? { tier: it.escalated_from, escalated_from: null } : {}) };
+  return patch(it, upd, 'extend', `+${n}d -> ${due}`);
+}
 
 // ---------- edit dialog ----------
 const form = $('#editForm');
@@ -268,6 +287,7 @@ $('#edit').addEventListener('close', async () => {
 // ---------- view ----------
 const byTab = {
   recent: i => i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3,
+  open: i => !['done', 'cancelled'].includes(i.status),
   today: i => OPEN.includes(i.status) && (i.tier === 1 || (daysTo(i.due_date) ?? 99) <= 2),
   payables: i => OPEN.includes(i.status) && i.kind === 'payment_out',
   receivables: i => OPEN.includes(i.status) && ['payment_in', 'invoice'].includes(i.kind),
@@ -280,7 +300,7 @@ function filtered() {
   const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
   const list = items.filter(i => byTab[tab](i) && (!ent || i.entity === ent) && (!tr || i.tier == tr) && (!ch || i.channel === ch) &&
     (!q || [i.title, i.party, i.requested_by, i.chat_name, i.details].join(' ').toLowerCase().includes(q)));
-  if (tab === 'recent') return list.sort((a, b) => Date.parse(b.received_at || b.created_at) - Date.parse(a.received_at || a.created_at));
+  if (tab === 'recent' || tab === 'open') return list.sort((a, b) => Date.parse(b.received_at || b.created_at) - Date.parse(a.received_at || a.created_at));
   if (tab === 'done') return list.sort((a, b) => (b.closed_at || '').localeCompare(a.closed_at || ''));
   return list.sort((a, b) => a.tier - b.tier || (daysTo(a.due_date) ?? 999) - (daysTo(b.due_date) ?? 999) || (b.amount || 0) - (a.amount || 0));
 }
@@ -288,15 +308,15 @@ function filtered() {
 function card(i) {
   const d = daysTo(i.due_date);
   const due = d == null ? '' : d < 0 ? `<span class="due over">${-d}d overdue</span>` : d === 0 ? '<span class="due over">due today</span>' : `<span>due ${esc(i.due_date)} (${d}d)</span>`;
-  const btns = i.status === 'needs_review' ? ['accept:✓ Accept', 'reject:✕ Not needed', 'edit:✎ Edit', 'up:▲', 'down:▼']
+  const btns = i.status === 'needs_review' ? ['accept:✓ Accept', 'reject:✕ Not needed', 'edit:✎ Edit', 'up:▲', 'down:▼', 'ext1:+1d', 'ext3:+3d', 'ext7:+7d']
     : ['done', 'cancelled'].includes(i.status) ? ['reopen:Reopen', 'edit:✎ Edit']
-    : ['done_proof:✓ Done', ...(i.amount ? ['part:Part paid'] : []), 'wait:Waiting', 'edit:✎ Edit', 'up:▲', 'down:▼'];
+    : ['done_proof:✓ Done', ...(i.amount ? ['part:Part paid'] : []), 'wait:Waiting', 'edit:✎ Edit', 'up:▲', 'down:▼', 'ext1:+1d', 'ext3:+3d', 'ext7:+7d'];
   return `<article class="item t${i.tier} ${i.tier === 1 ? 't1' : ''} ${sel.has(i.id) ? 'selected' : ''}" data-id="${i.id}">
     <input type="checkbox" data-sel ${sel.has(i.id) ? 'checked' : ''} aria-label="Select #${i.id}">
     <div>
       <div class="row">${isNew(i) ? '<span class="newb">NEW</span>' : ''}<span class="pill">${TIERS[i.tier]}</span><span class="kind">${KINDS[i.kind] || esc(i.kind)}</span>${i.auto_accepted ? '<button class="auto" data-act="edit" title="Accepted automatically (high confidence). Click to correct it or leave a comment for the AI.">🤖 auto</button>' : ''}
         <span class="title">${esc(i.title)}</span><span class="amt">${inr(i.amount)}${i.amount_paid > 0 ? ` <small>(paid ${inr(i.amount_paid)})</small>` : ''}</span></div>
-      <div class="src"><b>${CH[i.channel] || esc(i.channel || '?')}</b>${i.chat_name ? `<span>${esc(i.chat_name)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}<span>🕒 ${when(i.received_at || i.created_at)}</span></div>
+      <div class="src"><b>${CH[i.channel] || esc(i.channel || '?')}</b>${i.chat_name ? `<span>${esc(i.chat_name)}</span>` : ''}${i.requested_by ? `<span>from ${esc(i.requested_by)}</span>` : ''}<span>🕒 ${when(i.received_at || i.created_at)}</span>${ageFlag(i)}</div>
       <div class="meta">${due}${i.entity ? `<span>${esc(i.entity)}</span>` : ''}${i.party ? `<span>${esc(i.party)}</span>` : ''}${i.times_asked > 1 ? `<span>asked ${i.times_asked}×</span>` : ''}<span>#${i.id}</span>${i.status !== 'open' ? `<span>${esc(i.status.replace('_', ' '))}</span>` : ''}</div>
       ${i.dup_of && !['done', 'cancelled'].includes(i.status) ? (() => { const t = items.find(x => x.id === i.dup_of);
         return `<div class="dup">⚠ Possible duplicate of #${i.dup_of}${t ? ': ' + esc(t.title) : ''} <button class="btn" data-act="merge">Merge</button> <button class="btn" data-act="keep">Keep both</button></div>`; })() : ''}
