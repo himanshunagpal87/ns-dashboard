@@ -158,7 +158,7 @@ const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 't
 const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
 const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
-const TABS = [['recent', 'Recent'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done']];
+const TABS = [['recent', 'Recent'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['notes', 'Notes & Links']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -168,14 +168,17 @@ const when = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolk
 const daysTo = d => d ? Math.round((Date.parse(d) - Date.parse(istDate(Date.now()))) / 86400000) : null;
 const isNew = i => !i.seen_at && i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3;
 
-let items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
+let notes = [], items = [], tab = 'recent', user = null, sel = new Set(), alertsOn = false, flash = null;
 try { alertsOn = localStorage.getItem('ns.alerts') === '1'; } catch { }
 
 // ---------- data ----------
 async function load() {
   const { data, error } = await sb.from('items').select('*').order('id', { ascending: false }).limit(3000);
   if (error) return showError(error.message);
-  items = data; render();
+  items = data;
+  const n = await sb.from('notes').select('*').eq('archived', false).order('received_at', { ascending: false }).limit(1000);
+  notes = n.data || [];
+  render();
 }
 
 async function patch(it, upd, type, note, extraFeedback) {
@@ -271,6 +274,7 @@ const byTab = {
   tasks: i => OPEN.includes(i.status) && ['task', 'compliance', 'lead'].includes(i.kind),
   review: i => i.status === 'needs_review',
   done: i => i.status === 'done' || i.status === 'cancelled',
+  notes: () => false,
 };
 function filtered() {
   const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
@@ -319,6 +323,7 @@ function render() {
     [newCount ? 'hot' : '', newCount, 'new (72 hrs)'],
   ].map(([c, v, l]) => `<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join('');
   $('#markSeen').hidden = tab !== 'recent' || !newCount;
+  if (tab === 'notes') return renderNotes();
   const list = filtered();
   $('#list').innerHTML = list.length ? list.slice(0, 300).map(card).join('') + (list.length > 300 ? `<p class="empty">Showing 300 of ${list.length} - use filters</p>` : '')
     : '<p class="empty">Nothing here 🎉</p>';
@@ -326,6 +331,27 @@ function render() {
   $('#bulk').hidden = !sel.size; $('#bulkN').textContent = `${sel.size} selected`;
   setTitle();
 }
+// ---------- Notes & Links (self-chat; kept apart from tasks) ----------
+// split raw text on http(s) URLs, escape every piece (href values too) - no unescaped text ever reaches innerHTML
+const linkify = t => t.split(/(https?:\/\/[^\s<>"']+)/g)
+  .map((p, i) => i % 2 ? `<a href="${esc(p)}" target="_blank" rel="noopener noreferrer">${esc(p)}</a>` : esc(p)).join('');
+function renderNotes() {
+  const q = $('#q').value.toLowerCase();
+  const list = notes.filter(n => !q || (n.body || '').toLowerCase().includes(q));
+  $('#bulk').hidden = true; $('#markSeen').hidden = true;
+  $('#list').innerHTML = list.length ? list.map(n => `<article class="item t5" data-note="${n.id}"><span></span><div>
+      <div class="src"><b>📝 ${esc(n.chat)}</b><span>🕒 ${when(n.received_at)}</span>${n.links?.length ? `<span>🔗 ${n.links.length}</span>` : ''}${n.has_media ? '<span>📎 media</span>' : ''}</div>
+      <p style="white-space:pre-wrap;margin:4px 0;overflow-wrap:anywhere">${n.body ? linkify(n.body) : '<i>media only</i>'}</p>
+      <div class="actions"><button class="btn" data-archive="${n.id}">Archive</button></div></div></article>`).join('')
+    : '<p class="empty">No notes</p>';
+  setTitle();
+}
+$('#list').addEventListener('click', async e => {
+  const id = e.target.dataset && e.target.dataset.archive; if (!id) return;
+  await sb.from('notes').update({ archived: true }).eq('id', id);
+  notes = notes.filter(n => n.id != id); renderNotes();
+});
+
 function showError(m) { $('#list').innerHTML = `<p class="empty">Error: ${esc(m)}</p>`; }
 
 // ---------- attention: sound + browser notification + flashing title for new urgent items ----------
@@ -370,6 +396,8 @@ function live() {
     else if (idx >= 0) items[idx] = n; else items.unshift(n);
     if (n && n.tier === 1 && !wasUrgent && !['done', 'cancelled'].includes(n.status)) attention(n);
     render();
+  }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notes' }, ({ new: n }) => {
+    notes.unshift(n); if (tab === 'notes') render();
   }).subscribe(s => { $('#live').innerHTML = s === 'SUBSCRIBED' ? '<b>●</b> live' : '○ ' + s.toLowerCase(); });
 }
 
@@ -425,7 +453,7 @@ async function health() {
 setInterval(() => user && health(), 60000);
 sb.auth.onAuthStateChange((_e, s) => s && health());
 // local preview with sample data only (no database access); inert on the published site
-if (location.hostname === 'localhost') window.__ns = { preview: d => { items = d; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
+if (location.hostname === 'localhost') window.__ns = { preview: (d, n = []) => { items = d; notes = n; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
 </script>
 </body>
 </html>
