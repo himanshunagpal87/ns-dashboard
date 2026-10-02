@@ -355,21 +355,37 @@ function render() {
 // split raw text on http(s) URLs, escape every piece (href values too) - no unescaped text ever reaches innerHTML
 const linkify = t => t.split(/(https?:\/\/[^\s<>"']+)/g)
   .map((p, i) => i % 2 ? `<a href="${esc(p)}" target="_blank" rel="noopener noreferrer">${esc(p)}</a>` : esc(p)).join('');
+const noteSel = new Set();
 function renderNotes() {
   const q = $('#q').value.toLowerCase();
   const list = notes.filter(n => !q || (n.body || '').toLowerCase().includes(q));
   $('#bulk').hidden = true; $('#markSeen').hidden = true;
-  $('#list').innerHTML = list.length ? list.map(n => `<article class="item t5" data-note="${n.id}"><span></span><div>
+  $('#list').innerHTML = (list.length ? `<div class="filters"><label><input type="checkbox" id="noteAll" ${list.every(n => noteSel.has(n.id)) ? 'checked' : ''}> Select all shown</label>
+      ${noteSel.size ? `<b>${noteSel.size} selected</b> <button class="btn" data-nbulk="archive">Archive</button> <button class="btn" data-nbulk="delete">🗑 Delete</button> <button class="btn" data-nbulk="clear">Clear</button>` : ''}</div>`
+    + list.map(n => `<article class="item t5 ${noteSel.has(n.id) ? 'selected' : ''}"><input type="checkbox" data-nsel="${n.id}" ${noteSel.has(n.id) ? 'checked' : ''} aria-label="Select note"><div>
       <div class="src"><b>📝 ${esc(n.chat)}</b><span>🕒 ${when(n.received_at)}</span>${n.links?.length ? `<span>🔗 ${n.links.length}</span>` : ''}${n.has_media ? '<span>📎 media</span>' : ''}</div>
       <p style="white-space:pre-wrap;margin:4px 0;overflow-wrap:anywhere">${n.body ? linkify(n.body) : '<i>media only</i>'}</p>
-      <div class="actions"><button class="btn" data-archive="${n.id}">Archive</button></div></div></article>`).join('')
-    : '<p class="empty">No notes</p>';
+      <div class="actions"><button class="btn" data-narch="${n.id}">Archive</button><button class="btn" data-ndel="${n.id}">🗑 Delete</button></div></div></article>`).join('')
+    : '<p class="empty">No notes</p>');
   setTitle();
 }
+async function notesDo(ids, action) {
+  if (!ids.length) return;
+  if (action === 'delete' && !confirm(`Delete ${ids.length} note(s) permanently?`)) return;
+  const q = action === 'delete' ? sb.from('notes').delete().in('id', ids) : sb.from('notes').update({ archived: true }).in('id', ids);
+  const { error } = await q;
+  if (error) return alert('Could not ' + action + ': ' + error.message);
+  notes = notes.filter(n => !ids.includes(n.id)); ids.forEach(id => noteSel.delete(id)); renderNotes();
+}
 $('#list').addEventListener('click', async e => {
-  const id = e.target.dataset && e.target.dataset.archive; if (!id) return;
-  await sb.from('notes').update({ archived: true }).eq('id', id);
-  notes = notes.filter(n => n.id != id); renderNotes();
+  if (tab !== 'notes') return;
+  const d = e.target.dataset || {};
+  if (d.nsel) { e.target.checked ? noteSel.add(+d.nsel) : noteSel.delete(+d.nsel); return renderNotes(); }
+  if (e.target.id === 'noteAll') { const q = $('#q').value.toLowerCase(); notes.filter(n => !q || (n.body || '').toLowerCase().includes(q)).forEach(n => e.target.checked ? noteSel.add(n.id) : noteSel.delete(n.id)); return renderNotes(); }
+  if (d.narch) return notesDo([+d.narch], 'archive');
+  if (d.ndel) return notesDo([+d.ndel], 'delete');
+  if (d.nbulk === 'clear') { noteSel.clear(); return renderNotes(); }
+  if (d.nbulk) return notesDo([...noteSel], d.nbulk);
 });
 
 function showError(m) { $('#list').innerHTML = `<p class="empty">Error: ${esc(m)}</p>`; }
