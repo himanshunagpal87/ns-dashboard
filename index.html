@@ -53,6 +53,9 @@
   .tbl tr.dupe td { color: var(--muted); }
   .newb { font-size: 11px; font-weight: 700; color: #fff; background: var(--new); border-radius: 4px; padding: 0 5px; }
   .due.over { color: var(--t1); font-weight: 600; }
+  .sync { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; font-size: 12px; }
+  .sync span { border: 1px solid var(--line, #ddd); border-radius: 999px; padding: 2px 9px; }
+  .sync .stale { border-color: var(--t1); color: var(--t1); font-weight: 600; }
   .health { background: var(--t1); color: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
   .dup { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: #fef3c7; color: #78350f; font-size: 13px; }
   @media (prefers-color-scheme: dark) { .dup { background: #3b2f12; color: #fde68a; } }
@@ -101,12 +104,14 @@
   </header>
   <main>
     <div id="health" class="health" hidden></div>
+    <div id="sync" class="sync" aria-label="Last sync per source"></div>
     <section class="stats" id="stats"></section>
     <div class="filters">
       <input type="checkbox" id="selAll" title="Select all shown" aria-label="Select all shown">
       <select id="entity" aria-label="Entity"><option value="">All entities</option></select>
       <select id="tier" aria-label="Priority"><option value="">All priorities</option></select>
       <select id="channel" aria-label="Source"><option value="">All sources</option></select>
+      <select id="sort" aria-label="Sort"><option value="">Sort: default</option><option value="new">Newest first</option><option value="old">Oldest first</option><option value="tier">Priority</option><option value="due">Due date</option><option value="source">Source</option><option value="amount">Amount</option></select>
       <input id="q" type="search" placeholder="Search…" aria-label="Search">
       <button class="btn" id="markSeen" hidden>Mark all seen</button>
     </div>
@@ -125,6 +130,7 @@
   <button class="btn" data-bulk="ext1">+1d</button>
   <button class="btn" data-bulk="ext3">+3d</button>
   <button class="btn" data-bulk="ext7">+7d</button>
+  <button class="btn" data-bulk="merge" title="Merge the selected items into the oldest one">⇢ Merge</button>
   <button class="btn" data-bulk="up">▲</button>
   <button class="btn" data-bulk="down">▼</button>
   <button class="btn" data-bulk="clear">Clear</button>
@@ -167,9 +173,9 @@ const KINDS = { payment_out: 'Payable', payment_in: 'Receivable', task: 'Task', 
 const STATUSES = ['needs_review', 'open', 'scheduled', 'part_paid', 'waiting', 'done', 'cancelled'];
 const CATS = ['', 'card_bill', 'utility_bill', 'emi', 'auto_debit', 'vendor', 'transfer', 'salary', 'tax', 'challan', 'other'];
 const ENTS = ['', 'NS-1', 'NS-2', 'NS-3', 'NS-4', 'NS-5', 'PLLR', 'SHIVAM', 'KESHAV', 'PERSONAL'];
-const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', manual: '✍️ Manual' };
+const CH = { whatsapp: '📱 WhatsApp', telegram: '✈️ Telegram', gmail: '✉️ Email', verbal: '🗣️ Verbal (NeoSapien)', neosapien: '🗣️ NeoSapien', manual: '✍️ Manual' };
 const OPEN = ['open', 'scheduled', 'part_paid', 'waiting'];
-const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', 'Done'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['queries', 'Queries'], ['notes', 'Notes & Links'], ['learning', '🧠 AI learning']];
+const TABS = [['recent', 'Recent'], ['open', 'All open'], ['today', 'Today'], ['payables', 'Payables'], ['receivables', 'Receivables'], ['tasks', 'Tasks'], ['review', 'Review'], ['done', '📦 Archive'], ['mis', 'MIS'], ['followups', 'Follow-ups'], ['queries', 'Queries'], ['notes', 'Notes & Links'], ['learning', '🧠 AI learning']];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const inr = n => n == null ? '' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -242,13 +248,16 @@ const ACTIONS = {
   // possible duplicate: merge into the existing item, or keep both (both choices teach triage)
   merge: async it => {
     const t = items.find(i => i.id === it.dup_of);
-    if (!t || !confirm(`Merge #${it.id} into #${t.id} "${t.title}"?`)) return;
-    await patch(t, { times_asked: (t.times_asked || 1) + 1 }, 'merge', `merged #${it.id}: ${it.title}`);
-    await sb.from('feedback').insert({ item_id: t.id, action: 'merge', before: { new_text: it.title }, after: { merged_into: t.id, title: t.title } });
-    await patch(it, { ...closeUpd('cancelled'), proof: `merged into #${t.id}`, dup_of: null, seen_at: it.seen_at || now() }, 'merged', `into #${t.id}`);
+    if (t && confirm(`Merge #${it.id} into #${t.id} "${t.title}"?`)) await mergeInto(it, t);
   },
   keep: it => patch(it, { dup_of: null }, 'not_duplicate', `kept separate from #${it.dup_of}`),
 };
+// merge `it` into `t`: t counts one more request, it is closed as merged (kept in the Archive, searchable)
+async function mergeInto(it, t) {
+    await patch(t, { times_asked: (t.times_asked || 1) + 1 }, 'merge', `merged #${it.id}: ${it.title}`);
+    await sb.from('feedback').insert({ item_id: t.id, action: 'merge', before: { new_text: it.title }, after: { merged_into: t.id, title: t.title } });
+    await patch(it, { ...closeUpd('cancelled'), proof: `merged into #${t.id}`, dup_of: null, seen_at: it.seen_at || now() }, 'merged', `into #${t.id}`);
+}
 
 function extend(it, n) {
   const today = istDate(Date.now()), base = it.due_date && it.due_date > today ? it.due_date : today;
@@ -298,7 +307,7 @@ $('#edit').addEventListener('close', async () => {
 
 // ---------- view ----------
 const byTab = {
-  recent: i => i.status !== 'cancelled' && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3,
+  recent: i => !['done', 'cancelled'].includes(i.status) && Date.now() - Date.parse(i.received_at || i.created_at) < 72 * 3600e3,
   open: i => !['done', 'cancelled'].includes(i.status),
   today: i => OPEN.includes(i.status) && (i.tier === 1 || (daysTo(i.due_date) ?? 99) <= 2),
   payables: i => OPEN.includes(i.status) && i.kind === 'payment_out',
@@ -312,6 +321,12 @@ function filtered() {
   const ent = $('#entity').value, tr = $('#tier').value, ch = $('#channel').value, q = $('#q').value.toLowerCase();
   const list = items.filter(i => byTab[tab](i) && (!ent || i.entity === ent) && (!tr || i.tier == tr) && (!ch || i.channel === ch) &&
     (!q || [i.title, i.party, i.requested_by, i.chat_name, i.details].join(' ').toLowerCase().includes(q)));
+  const t = i => Date.parse(i.received_at || i.created_at), srt = $('#sort').value;
+  const SORTS = { new: (a, b) => t(b) - t(a), old: (a, b) => t(a) - t(b), tier: (a, b) => a.tier - b.tier || t(b) - t(a),
+    due: (a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.tier - b.tier,
+    source: (a, b) => (a.channel || '').localeCompare(b.channel || '') || (a.chat_name || '').localeCompare(b.chat_name || '') || t(b) - t(a),
+    amount: (a, b) => (b.amount || 0) - (a.amount || 0) };
+  if (SORTS[srt]) return list.sort(SORTS[srt]);
   if (tab === 'recent' || tab === 'open') return list.sort((a, b) => Date.parse(b.received_at || b.created_at) - Date.parse(a.received_at || a.created_at));
   if (tab === 'done') return list.sort((a, b) => (b.closed_at || '').localeCompare(a.closed_at || ''));
   return list.sort((a, b) => a.tier - b.tier || (daysTo(a.due_date) ?? 999) - (daysTo(b.due_date) ?? 999) || (b.amount || 0) - (a.amount || 0));
@@ -433,16 +448,17 @@ function renderMis() {
 }
 // ---------- staff follow-ups (for the future follow-up automation) ----------
 const FU_KINDS = { order_confirmation: '📦 Confirm my order', assigned_task: '👉 My task to someone', staff_instruction: '👥 Family → staff' };
-let fuKind = '', fuWho = '';
+let fuKind = '', fuWho = '', fuArch = false;
 function renderFollowups() {
   const q = $('#q').value.toLowerCase();
   const people = [...new Set(followups.filter(f => f.status === 'open').map(f => f.directed_to).filter(Boolean))].sort();
-  const list = followups.filter(f => (!fuKind || f.kind === fuKind) && (!fuWho || f.directed_to === fuWho) &&
+  const list = followups.filter(f => (fuArch ? f.status !== 'open' : f.status === 'open') && (!fuKind || f.kind === fuKind) && (!fuWho || f.directed_to === fuWho) &&
       (!q || [f.instruction, f.requested_by, f.directed_to, f.chat_name].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || Date.parse(b.received_at) - Date.parse(a.received_at));
   $('#bulk').hidden = true; $('#markSeen').hidden = true;
   const head = `<div class="filters">${[['', 'All'], ...Object.entries(FU_KINDS)].map(([k, l]) =>
       `<button class="btn ${fuKind === k ? 'primary' : ''}" data-fukind="${k}">${l} (${followups.filter(f => f.status === 'open' && (!k || f.kind === k)).length})</button>`).join('')}
+    <button class="btn ${fuArch ? 'primary' : ''}" data-fuarch>📦 Archived (${followups.filter(f => f.status !== 'open').length})</button>
     <select data-fuwho><option value="">Assigned to: anyone</option>${people.map(p => `<option ${fuWho === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>`;
   $('#list').innerHTML = head + (list.length ? list.map(f => `<article class="item t5"><span></span><div>
       <div class="row"><span class="kind">${FU_KINDS[f.kind] || esc(f.kind)}</span><span class="kind">${esc(f.status)}</span><span class="title">${esc(f.instruction)}</span></div>
@@ -459,7 +475,7 @@ $('#list').addEventListener('click', async e => {
   if (d.fu) {
     const { error } = await sb.from('followups').update({ status: d.fust }).eq('id', d.fu);
     if (error) return alert(error.message);
-    followups.find(f => f.id == d.fu).status = d.fust; renderFollowups();
+    followups.find(f => f.id == d.fu).status = d.fust; renderFollowups();  // closed ones move to 📦 Archived
   }
 });
 // ---------- Queries received (for future auto-reply strategies) ----------
@@ -482,6 +498,7 @@ function renderQueries() {
 $('#list').addEventListener('click', async e => {
   const d = e.target.dataset || {};
   if (d.fukind !== undefined && tab === 'followups') { fuKind = d.fukind; return renderFollowups(); }
+  if (d.fuarch !== undefined && tab === 'followups') { fuArch = !fuArch; return renderFollowups(); }
   if (d.qcat !== undefined && tab === 'queries') { qCat = d.qcat; return renderQueries(); }
   if (d.qans) {
     const x = queries.find(y => y.id == d.qans);
@@ -614,13 +631,23 @@ document.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click'
   const a = b.dataset.bulk;
   if (a === 'clear') { sel.clear(); return render(); }
   const list = items.filter(i => sel.has(i.id));
+  if (a === 'merge') {
+    if (list.length < 2) return alert('Select at least 2 items to merge');
+    const t = list.reduce((x, y) => Date.parse(x.received_at || x.created_at) <= Date.parse(y.received_at || y.created_at) ? x : y);
+    const id = prompt(`Merge ${list.length} items into which one? (the others are archived as "merged")\n` +
+      list.map(i => `#${i.id} ${i.title}`).join('\n'), t.id);
+    const target = list.find(i => i.id == id); if (!target) return;
+    b.disabled = true;
+    for (const it of list) if (it !== target) await mergeInto(it, target);
+    b.disabled = false; sel.clear(); return render();
+  }
   if (['reject', 'done'].includes(a) && !confirm(`${a === 'done' ? 'Mark done' : 'Mark not needed'}: ${list.length} items?`)) return;
   b.disabled = true;
   for (const it of list) await ACTIONS[a](it);
   b.disabled = false; sel.clear(); render();
 }));
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (!b) return; tab = b.dataset.tab; sel.clear(); render(); });
-['#entity', '#tier', '#channel', '#q'].forEach(s => $(s).addEventListener('input', render));
+['#entity', '#tier', '#channel', '#sort', '#q'].forEach(s => $(s).addEventListener('input', render));
 Object.entries(TIERS).forEach(([k, v]) => $('#tier').insertAdjacentHTML('beforeend', `<option value="${k}">${v}</option>`));
 ENTS.filter(Boolean).forEach(e => $('#entity').insertAdjacentHTML('beforeend', `<option>${e}</option>`));
 Object.entries(CH).forEach(([k, v]) => $('#channel').insertAdjacentHTML('beforeend', `<option value="${k}">${v}</option>`));
@@ -650,6 +677,15 @@ async function health() {
   $('#health').hidden = !msg; $('#health').textContent = msg;
 }
 setInterval(() => user && health(), 60000);
+// last sync per source (view ns_sync_status); red when a source that should be regular has gone quiet
+const ago = d => { const m = Math.round((Date.now() - Date.parse(d)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + 'm ago' : m < 1440 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm ago' : when(d); };
+async function syncStatus() {
+  const { data } = await sb.from('ns_sync_status').select('*');
+  $('#sync').innerHTML = (data || []).map(r => { const stale = !r.at || (r.warn_min && Date.now() - Date.parse(r.at) > r.warn_min * 60000);
+    return `<span class="${stale ? 'stale' : ''}" title="${r.at ? esc(when(r.at)) : 'never'}">${esc(r.label)}: ${r.at ? ago(r.at) : 'never'}</span>`; }).join('');
+}
+setInterval(() => user && !document.hidden && syncStatus(), 60000);
+sb.auth.onAuthStateChange((_e, s) => s && syncStatus());
 sb.auth.onAuthStateChange((_e, s) => s && health());
 // local preview with sample data only (no database access); inert on the published site
 if (location.hostname === 'localhost') window.__ns = { preview: (d, n = [], m = [], f = [], qs = [], c = [], r = []) => { items = d; notes = n; mis = m; followups = f; queries = qs; comments = c; rules = r; user = { email: 'preview' }; $('#login').hidden = true; $('#app').hidden = false; render(); }, attention };
